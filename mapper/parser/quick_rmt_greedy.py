@@ -1,4 +1,5 @@
 import sys
+import os
 
 from p4_hlir.main import HLIR
 import hlirToProgram
@@ -63,6 +64,11 @@ for k in configs.keys():
             pass
         pass
     config.displayInitialConditions()
+
+    p4FileName = os.path.split(sys.argv[2])[-1]
+    pictureName = "%s-rmtGreedy-%s-%s"%(p4FileName,sys.argv[1],k)
+    logging.info("Picture at %s, filename %s.pdf" % (os.getcwd(), p4FileName))
+    configs[k].showPic(prefix=os.getcwd()+"/",filename=pictureName)
     pass
 
 
