@@ -1,0 +1,4 @@
+type='RmtFfdCompiler', key='RmtFfdCompiler-16', numSramBlocksReserved=16
+type='RmtFflCompiler', key='RmtFflCompiler-16', numSramBlocksReserved=16
+type='RmtFflsCompiler', key='RmtFflsCompiler-16', numSramBlocksReserved=16
+type='FlexpipeLptCompiler', key='FlexpipeLptCompiler'
