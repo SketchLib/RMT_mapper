@@ -1,6 +1,8 @@
 """
-Extract control flow and parse graphs to DOT graph descriptions and generate PNGs of them
+[get|show]ProgramInfo() returns|displays program info- table names, widths, action widths, match types, num entries
+indexed by table number in a format suitable for initializing a Program from mapper.programs.program
 """
+
 import os
 import subprocess
 import argparse
@@ -18,11 +20,6 @@ logger.debug("CHECKING")
 from collections import OrderedDict, defaultdict
 
 
-"""
-Returns 6 lists- table names, widths, action widths, match types, num entries
-indexed by table number in a format suitable for initializing a
-Program from mapper.src.programs.program
-"""
 
 defaultMatch = {'width':32, 'match_type':'exact', 'action_widths':[0], 'num_entries':1024, 'num_action_words':1, 'fixed_action_data_per_stage':False}
 defaultCondition = {'width':1, 'match_type':'gw', 'action_widths':[0], 'num_entries':12, 'num_action_words':1, 'fixed_action_data_per_stage':False}
@@ -374,7 +371,7 @@ def getProgramInfo(input_hlir):
     
     return programInfo
 
-def getMapperInput(input_hlir):
+def showProgramInfo(input_hlir):
     pi = getProgramInfo(input_hlir)
 
     table_names, widths, action_widths, match_types, num_entries,\
