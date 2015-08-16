@@ -14,7 +14,7 @@ class RmtSwitch:
                      width = {'sram':80, 'tcam':40},\
                      numStages = 32,\
                      matchType =\
-                     {'sram':['exact'], 'tcam':['exact', 'lpm', 'ternary']},\
+                     {'sram':['exact'], 'tcam':['exact', 'lpm', 'ternary', 'gw']},\
                      inputCrossbarNumSubunits =\
                      {'sram':8, 'tcam':8},\
                      inputCrossbarWidthSubunit=\

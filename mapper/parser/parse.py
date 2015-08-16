@@ -215,6 +215,15 @@ def getFlexpipePreprocess(d):
     preprocess = FlexpipePreprocess()
     return preprocess
 
+def parseSilently(line):
+    line.rstrip("\n")
+    keyValuePairs = [[k.lstrip().rstrip().replace(';',',') for k in pair.split("=")] for pair in line.split(",")]
+    stringDict = {}
+    for (k,v) in keyValuePairs:
+        stringDict[k] = v
+        pass
+    return stringDict
+
 def parse(line):
     line.rstrip("\n")
     keyValuePairs = [[k.lstrip().rstrip().replace(';',',') for k in pair.split("=")] for pair in line.split(",")]
@@ -279,6 +288,15 @@ def getModuleFromStringDict(sd):
     
     pass
         
+def getKeysInConfigFile(qConfigFile):
+    names = []
+    f = open(qConfigFile, "r")
+    for line in f.xreadlines():
+        sd = parseSilently(line)
+        unquoteSdKey = sd['key'].lstrip('\'').rstrip('\'')
+        names.append(unquoteSdKey)
+        pass
+    return names
 
 def getModules(query):
     for q in query.keys():
@@ -315,14 +333,15 @@ def getModules(query):
     logging.info(query)
     return query
 
-def makeQuery(compKey, switchKey, progKey, prepKey):
+def makeQuery(compKey, switchKey, prepKey, progKey=None):
     query = {'compiler': {'key':'001', 'configFile':'mapper/config/comp00.txt', 'module':None},\
                   'switch': {'key':'001', 'configFile':'mapper/config/switch00.txt', 'module':None},\
-                  'program': {'key':'001', 'configFile':'mapper/config/prog00.txt', 'module': None},\
-                  'preprocess': {'key':'001', 'configFile':'mapper/config/prep00.txt', 'module': None}}
+                  'preprocess': {'key':'001', 'configFile':'mapper/config/prep00.txt', 'module': None},\
+                 'program': {'key':'001', 'configFile':'mapper/config/prog00.txt', 'module': None}}
+
 
     query['compiler']['key'] = compKey
     query['switch']['key'] = switchKey
-    query['program']['key'] = progKey
     query['preprocess']['key'] = prepKey
+    query['program']['key'] = progKey
     return query

@@ -1,14 +1,13 @@
 import sys
 import os
 
-from p4_hlir.main import HLIR
-import hlirToProgram
 
+from mapper.src.flexpipe.flexpipe_lpt_compiler import FlexpipeLptCompiler
 from mapper.src.flexpipe.flexpipe_switch import FlexpipeSwitch
-
 from mapper.src.flexpipe.flexpipe_preprocess import FlexpipePreprocess
-import logging
 
+
+import logging
 logging.basicConfig()
 
 if (len(sys.argv) < 2):
@@ -18,16 +17,13 @@ if (len(sys.argv) < 2):
 
 preprocess = FlexpipePreprocess()
 switch = FlexpipeSwitch()
-
-
-from mapper.src.flexpipe.flexpipe_lpt_compiler import FlexpipeLptCompiler
 compiler = FlexpipeLptCompiler()
 
 h = HLIR(sys.argv[1])
 h.build()
 program = hlirToProgram.getProgram(h)
-
 preprocess.preprocess(program=program, switch=switch)
+
 configs = compiler.solve(program=program, switch=switch, preprocess=preprocess)
 
 for k in configs.keys():

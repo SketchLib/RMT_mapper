@@ -34,14 +34,24 @@ class RmtPreprocess:
             pass
         
         for table in range(self.program.MaximumLogicalTables):
+            matchingMemTypeFound = False
+            tableType = self.program.matchType[table]
             for mem in self.switch.memoryTypes:
-                tableType = self.program.matchType[table]
                 switchTypes = self.switch.matchType[mem]
-                self.logger.debug("table type %s in switchTypes? %s" % (tableType, str(switchTypes)))
                 if  tableType in switchTypes:
+                  matchingMemTypeFound = True
                   self.use[mem][table] = 1
                   pass
                 pass
+            if not matchingMemTypeFound:
+                self.logger.error("Table match type (from program) " + tableType\
+                                      + " doesn't match any switch memory type"\
+                                      + " (from switch) "\
+                                      + str(self.switch.matchType))
+                exit()
+                pass
+
+            pass
         pass
 
 

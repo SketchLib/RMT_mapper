@@ -12,7 +12,7 @@ import p4_hlir.hlir.p4 as p4
 import p4_hlir.hlir.dependencies as dependencies
 import p4_hlir.hlir.table_dependency as table_dependency
 
-logging.basicConfig()
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger()
 hlir=None
 
