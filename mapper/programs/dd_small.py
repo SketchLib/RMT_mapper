@@ -1,6 +1,7 @@
 from program import Program as ProgramType
 import math
 import numpy as np
+import logging
 
 Routable,  Acl, Smac_Vlan, Vrf, UrpfV4, UrpfV6, Igmp_Snooping, Ipv6_Prefix, Ipv4_Forwarding, Ipv6_Forwarding, Ipv4_Xcast_Forwarding,\
   Ipv6_Xcast_Forwarding, Dmac_Vlan\
@@ -8,7 +9,7 @@ Routable,  Acl, Smac_Vlan, Vrf, UrpfV4, UrpfV6, Igmp_Snooping, Ipv6_Prefix, Ipv4
 
 class ProgramDdSmall:
     def __init__(self, numberOfEntriesDict={}):
- 
+        self.logger = logging.getLogger(__name__)
         self.numTables = 13
 
 
@@ -182,36 +183,36 @@ class ProgramDdSmall:
         self.setActionDataWidths()
         self.setWidths()
         
-        print "Number of entries per table"
+        self.logger.debug("Number of entries per table")
         defaultNumberOfEntriesDict = {'Acl':1000.0, 'Ipv4_Forwarding': 4000, 'Smac_Vlan': 4000, 'Routable': 64, 'Ipv6_Prefix': 500,\
                                                         'Ipv6_Forwarding': 500, 'Ipv4_Xcast_Forwarding': 1000, 'Ipv6_Xcast_Forwarding': 2}
         valid = True
         for field in defaultNumberOfEntriesDict.keys():
             if field not in numberOfEntriesDict.keys():
                 valid = False
-                print field + " not in dict, invalid"
+                self.logger.warn(field + " not in dict, invalid")
                 pass
             pass
 
         if not valid:
-            print "INVALID number of entries, using DEFAULT"
+            self.logger.warn("INVALID number of entries in config file, using DEFAULT")
             self.numberOfEntriesDict = defaultNumberOfEntriesDict
             pass
         else:
             self.numberOfEntriesDict = numberOfEntriesDict
-        print "number of entries: ", 
-        print self.numberOfEntriesDict
+            pass
+        self.logger.debug("number of entries: "\
+                          + str(self.numberOfEntriesDict))
         
         self.setNumberOfEntries()
         
         for table in range(self.numTables):
-            print table,
-            print ") t["+self.names[table]+"] = " + str(self.t[table]),
-            print " # matchesOn " + str(self.matchesOn[table]),
-            print " width " + str(self.w[table]),
-            print " # sets " + str(self.sets[table]),
-            print " action data width " + str(self.aw[table])
-            
+            self.logger.debug(str(table)\
+                              + ") t["+self.names[table]+"] = " + str(self.t[table])\
+                              + " # matchesOn " + str(self.matchesOn[table])\
+                              + " width " + str(self.w[table])\
+                              + " # sets " + str(self.sets[table])\
+                              + " action data width " + str(self.aw[table]))            
             pass
 
         flows = {}
@@ -234,9 +235,9 @@ class ProgramDdSmall:
         self.md.append((Ipv4_Xcast_Forwarding, Dmac_Vlan))
         self.md.append((Ipv6_Xcast_Forwarding, Dmac_Vlan))
 
-        print "Match dependencies"
+        self.logger.debug("Match dependencies")
         for (table2, table1) in self.md:
-            print str(table2) + " " + self.names[table2] + " <- " + str(table1) + " " + self.names[table1]
+            self.logger.debug(str(table2) + " " + self.names[table2] + " <- " + str(table1) + " " + self.names[table1])
             pass
 
         # TODO(lav): How to compute action dependencies, control flow and table order..
@@ -251,9 +252,9 @@ class ProgramDdSmall:
                    (flows[fl][index1], flows[fl][index2]) not in self.md]
 
         self.ad = list(set(self.ad))
-        print "Action dependencies"
+        self.logger.debug("Action dependencies")
         for (table2, table1) in self.ad:
-            print str(table2) + " " + self.names[table2] + " <- " + str(table1) + " " + self.names[table1]
+            self.logger.debug(str(table2) + " " + self.names[table2] + " <- " + str(table1) + " " + self.names[table1])
             pass
 
         self.setSuccessorDependencies()
@@ -272,14 +273,14 @@ class ProgramDdSmall:
         
         rmd = list(set(rmd))
 
-        print "Rev. match dependencies"
+        self.logger.debug("Rev. match dependencies")
         for (table2, table1) in rmd:
-            print self.names[table2] + " <- " + self.names[table1]
+            self.logger.debug(self.names[table2] + " <- " + self.names[table1])
             pass
 
-        print "Successor dependencies"
+        self.logger.debug("Successor dependencies")
         for (table1, table2) in self.sd:
-            print self.names[table2] + " <- " + self.names[table1]
+            self.logger.debug(self.names[table2] + " <- " + self.names[table1])
             pass
 
         self.sd += rmd
@@ -360,7 +361,7 @@ class ProgramDdSmall:
                 pass
             pass
 
-        print fields
+        self.logger.debug("Fields matched on " + str(fields))
         
         for table in range(self.numTables):
             w[table] = sum([self.width[f] for f in self.matchesOn[table]])

@@ -1,7 +1,9 @@
+import sys
 import math
 import argparse
 import os
 import time
+import traceback
 from parse import *
 
 
@@ -80,11 +82,16 @@ def getFile(path):
 
 # GENERATE LOG FILE NAME
 try:
-    jobId= "_".join(["%s-%s" % (module[0], module[1]) for module in\
+    jobId= "_".join([("%s" % (module[1])) for module in\
                          [(getFile(args.compiler_file), args.compiler),\
                               (getFile(args.program_file), args.program),\
-                              (getFile(args.switch_file), args.switch),\
-                              (getFile(args.preprocessor_file), args.preprocessor)]])
+                              (getFile(args.switch_file), args.switch)]])
+
+#     jobId= "_".join(["%s-%s" % (module[0], module[1]) for module in\
+#                          [(getFile(args.compiler_file), args.compiler),\
+#                               (getFile(args.program_file), args.program),\
+#                               (getFile(args.switch_file), args.switch),\
+#                               (getFile(args.preprocessor_file), args.preprocessor)]])
     if args.run is not None:
         jobId += "_%s" % args.run
         pass
@@ -108,8 +115,8 @@ try:
     logFile = args.log_directory + jobId + ".log"
     print "logFile: " + logFile
 except:
-    exc_info = sys.exc_info()
-    print "Could not generate log file name " + str(exc_info[0]) + "\n" + str(exc_info)
+    print "Could not generate log file name "
+    traceback.print_exc()
     print "Error! Exiting!"
     exit()
     pass
@@ -123,8 +130,8 @@ try:
     print "Logging level is %d" % numeric_level
     logging.basicConfig(level=numeric_level, filename=logFile, filemode='w')
 except:
-    exc_info = sys.exc_info()
-    print "Could not setup logging " + str(exc_info[0]) + "\n" + str(exc_info)
+    print "Could not setup logging "
+    traceback.print_exc()
     print "Error! Exiting!"
     exit()
     pass
@@ -138,8 +145,8 @@ try:
     query['program']['configFile'] = args.program_file
     query = getModules(query)
 except:
-    exc_info = sys.exc_info()
-    logging.error("Could not get valid compiler, switch, preprocessor modules " + str(exc_info[0]) + "\n" + str(exc_info))
+    logging.error("ERROR!!! Could not get valid compiler, switch, preprocessor modules ")
+    logging.error(traceback.format_exc())
     print "Error! Exiting! Check log file"
     exit()
     pass    
@@ -173,8 +180,8 @@ try:
             pass
         pass
 except:
-    exc_info = sys.exc_info()
-    logging.error("Could not set up compiler module using command line options " + str(exc_info[0]) + "\n" + str(exc_info))
+    logging.error("ERROR!!! Could not set up compiler module using command line options ")
+    logging.error(traceback.format_exc())
     print "Error! Exiting! Check log file"
     exit()
     pass
@@ -183,12 +190,23 @@ switch = query['switch']['module']
 preprocess =  query['preprocess']['module']
 program = query['program']['module']
 
+# DISPLAY PROGRAM INFO
+try:
+    logging.info("Program Info")
+    program.showProgramInfo()
+except:
+    logging.error("ERROR!!! Could not output program info ")
+    logging.error(traceback.format_exc())
+    print "Error! Exiting! Check log file"
+    exit()
+    pass
+    
 # PREPROCESS
 try:
     preprocess.preprocess(program=program, switch=switch)
 except:
-    exc_info = sys.exc_info()
-    logging.error("Could not preprocess program and switch " + str(exc_info[0]) + "\n" + str(exc_info))
+    logging.error("ERROR!!! Could not preprocess program and switch ")
+    logging.error(traceback.format_exc())
     print "Error! Exiting! Check log file"
     exit()
     pass
@@ -196,16 +214,20 @@ except:
 
 # COMPILE
 try:
+    logging.info("Compiling...")
     start = time.time()
     configs = compiler.solve(program=program, switch=switch, preprocess=preprocess)
     end = time.time()
+    logging.info("Finished compiling")
 except:
     exc_info = sys.exc_info()
-    logging.error("Compiler terminated unexpectedly " + str(exc_info[0]) + "\n" + str(exc_info))
+    logging.error("ERROR!!! Compiler terminated unexpectedly ")
+    logging.error(traceback.format_exc())
     print "Error! Exiting! Check log file"
     exit()
     pass
 
+logging.info("Final switch configurations")
 for k in configs.keys():
     logging.info("\nDisplaying config for %s" % k)
     config = configs[k]
@@ -236,8 +258,8 @@ for k in configs.keys():
         logging.info("Setup")
         config.displayInitialConditions()
     except:
-        exc_info = sys.exc_info()
-        logging.error("Error outputting compiler results: " + str(exc_info[0]) + "\n" + str(exc_info))
+        logging.error("ERROR!!! Error outputting compiler results")
+        logging.error(traceback.format_exc())
         print "Error! Exiting! Check log file"
         exit()
         pass
@@ -253,8 +275,8 @@ if args.picture_prefix is not None:
             pass
         pass
     except:
-        exc_info = sys.exc_info()
-        logging.error("Error converting compilers results to PDF picture: " + str(exc_info[0]) + "\n" + str(exc_info))
+        logging.error("ERROR!!! Error converting compilers results to PDF picture")
+        logging.error(traceback.format_exc())
         print "Error! Exiting! Check log file"
         exit()
     pass

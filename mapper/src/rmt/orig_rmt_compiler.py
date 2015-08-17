@@ -18,6 +18,8 @@ class RmtIlpCompiler:
                      workMem=None,\
                      nodeFileInd=None,\
                      workDir=None):
+        self.logger = logging.getLogger(__name__)
+
         self.objectiveStr=objectiveStr
         self.relativeGap = relativeGap
         self.greedyVersion = greedyVersion
@@ -47,7 +49,7 @@ class RmtIlpCompiler:
             }
         self.numConstraints = 0
         self.dimensionSizes = {}
-        self.logger = logging.getLogger(__name__)
+        self.logger = self.logger.getLogger(__name__)
         pass
 
     def setDimensionSizes(self):
@@ -267,9 +269,9 @@ class RmtIlpCompiler:
                              startTimeOfStage[st-1] + self.switch.successorDelay):
                 roundOkay = (round(startTimeOfStage[st]) >=\
                              round(startTimeOfStage[st-1]) + self.switch.successorDelay)
-                level = logging.WARNING
+                level = self.logger.WARNING
                 if not roundOkay:
-                    level = logging.ERROR
+                    level = self.logger.ERROR
                     pass
 
                 self.logger.log(level, "successor dependency constraint on latency violated at %d" % st)
@@ -281,9 +283,9 @@ class RmtIlpCompiler:
                    startTimeOfEndStageOfLog[log1] + self.switch.matchDelay):
                 roundOkay = (round(startTimeOfStartStageOfLog[log2]) >=\
                                  round(startTimeOfEndStageOfLog[log1]) + self.switch.matchDelay)
-                level = logging.WARNING
+                level = self.logger.WARNING
                 if not roundOkay:
-                    level = logging.ERROR
+                    level = self.logger.ERROR
                     pass
                 self.logger.log(level,\
                                     "match dependency (%s, %s)" % (self.program.names[log1], self.program.names[log2])\
@@ -299,9 +301,9 @@ class RmtIlpCompiler:
                    startTimeOfEndStageOfLog[log1] + self.switch.actionDelay):
                 roundOkay = (round(startTimeOfStartStageOfLog[log2]) >=\
                                  round(startTimeOfEndStageOfLog[log1]) + self.switch.actionDelay)
-                level = logging.WARNING
+                level = self.logger.WARNING
                 if not roundOkay:
-                    level = logging.ERROR
+                    level = self.logger.ERROR
                     pass
 
                 self.logger.log(level,\
@@ -360,17 +362,17 @@ class RmtIlpCompiler:
         for log in range(self.logMax):
             if not(sum([endAllMem[log,st] for st in range(self.stMax)]) == 1):
                 roundOkay = (sum([round(endAllMem[log,st]) for st in range(self.stMax)]) == 1)
-                level = logging.WARNING
+                level = self.logger.WARNING
                 if not roundOkay:
-                    level = logging.ERROR
+                    level = self.logger.ERROR
                     pass
                 self.logger.log(level, "Constraint violated- more/less than one end stage for " + self.program.names[log])
                 pass
             if not(sum([startAllMem[log,st] for st in range(self.stMax)]) == 1):
                 roundOkay = (sum([round(startAllMem[log,st]) for st in range(self.stMax)]) == 1)
-                level = logging.WARNING
+                level = self.logger.WARNING
                 if not roundOkay:
-                    level = logging.ERROR
+                    level = self.logger.ERROR
                     pass
                 self.logger.log(level, "Constraint violated- more/less than one start stage for " + self.program.names[log])
                 pass
@@ -457,9 +459,9 @@ class RmtIlpCompiler:
                 if (startStage[log] > st and totalBlocks > 0):
                     binary = model[self.blockAllMemBin][log,st]
                     roundOkay = not (round(startStage[log]) > st and round(totalBlocks) > 0)
-                    level = logging.WARNING
+                    level = self.logger.WARNING
                     if not roundOkay:
-                        level = logging.ERROR
+                        level = self.logger.ERROR
                         pass
 
                     self.logger.log(level, "startStage def. constraint violated for log %s, st %d: " % (self.program.names[log], st)\
@@ -655,9 +657,9 @@ class RmtIlpCompiler:
                 roundOkay = (sum([round(blockBin[log,st]) *\
                                      self.preprocess.inputCrossbarNumSubunits[mem][log] for log in range(self.logMax)])\
                                      <= numSubunitsAvailable)
-                level = logging.WARNING
+                level = self.logger.WARNING
                 if not roundOkay:
-                    level = logging.ERROR
+                    level = self.logger.ERROR
                     pass
 
                 self.logger.log(level, "Input Crossbar Constraint violated in st %d, mem %s" % (st,mem) +\

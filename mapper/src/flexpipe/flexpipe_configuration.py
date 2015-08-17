@@ -1,17 +1,28 @@
 import numpy as np
 import math
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 from datetime import datetime
-from matplotlib.backends.backend_pdf import PdfPages
 import logging
 from flexpipe_dependency_analysis import FlexpipeDependencyAnalysis
 import random
 import textwrap
 
+import traceback
+
+# PLOTTING MODULES
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from matplotlib.backends.backend_pdf import PdfPages
+except:
+    logging.info(traceback.print_exc())
+    pass
+
+
 class FlexpipeConfiguration:
     def __init__(self, program, switch, preprocess, version):
+        self.logger = logging.getLogger(__name__)
+
         self.program = program
         self.switch = switch
         self.preprocess = preprocess
@@ -39,16 +50,16 @@ class FlexpipeConfiguration:
 
         memoryTypes = self.switch.memoryTypes
         for mem in memoryTypes:
-            logging.info("(%s) In memory: %s" % (self.version, mem))
+            self.logger.info("(%s) In memory: %s" % (self.version, mem))
             for st in range(self.switch.numStages):
-                logging.info("(%s) In stage %d" % (self.version, st))
+                self.logger.info("(%s) In stage %d" % (self.version, st))
                 for sl in self.preprocess.slicesInStage(mem, st):
                     for log in range(self.program.MaximumLogicalTables):
                         numRows = self.numberOfRows[mem][log,sl]
                         if numRows > 0:
                             startRow = self.startRow[mem][log,sl]
                             numSl = int(self.preprocess.pfBlocks[mem][log])
-                            logging.info(\
+                            self.logger.info(\
                                 "(%s) " % self.version +\
                                 "Table %s " % self.program.names[log] +\
                                     "start sl %d, row %d; " % (sl, startRow) +\
@@ -93,7 +104,7 @@ class FlexpipeConfiguration:
                 # set numRows and startRow
                 # check for overlap
                 if numRows > 0:
-                    logging.info("(%s) Parse: Slice %d has %s in %d..%d" %\
+                    self.logger.info("(%s) Parse: Slice %d has %s in %d..%d" %\
                                      (self.version, startSl, tablename, startRow, startRow + numRows))
                     numberOfRowsDict[mem][tableIndex, startSl] = numRows
                     startRowDict[mem][tableIndex, startSl] = startRow
@@ -149,7 +160,7 @@ class FlexpipeConfiguration:
         for table in self.program.names:
             index = self.program.names.index(table)
             code = logColors[index]
-            print("%s: %s" % (table, code))
+            #print("%s: %s" % (table, code))
             pass
         """
         for d in [groupColors, colorGroups, logColors]:
@@ -188,7 +199,7 @@ class FlexpipeConfiguration:
             tablesPerStage[mem] = []
             fig[mem] = plt.figure(figNum)
             figNum += 1
-            logging.info("(%s) In memory: %s" % (self.version, mem))
+            self.logger.info("(%s) In memory: %s" % (self.version, mem))
             ax = fig[mem].add_subplot(111)
             rect[mem] = [[] for log in range(self.program.MaximumLogicalTables)]
             maxY = self.switch.depth[mem]
@@ -219,7 +230,7 @@ class FlexpipeConfiguration:
                             patch = matplotlib.patches.Rectangle((xLeft, yBottom),\
                                                                      width,height,\
                                                                      color=logColors[log])
-                            logging.info("(%s) %s in mem %s, stage %d, slice %d in rows %d .. %d (%s)" %\
+                            self.logger.info("(%s) %s in mem %s, stage %d, slice %d in rows %d .. %d (%s)" %\
                                          (self.version, self.program.names[log], mem, st, sl,
                                           startRow, startRow+numRows, logColors[log]))
                             ax.add_patch(patch)

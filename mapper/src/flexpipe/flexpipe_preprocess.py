@@ -1,7 +1,9 @@
+import logging
 import numpy as np
 
 class FlexpipePreprocess:
     def __init__(self):
+        self.logger = logging.getLogger(__name__)
         pass
 
     def slicesInStage(self, mem, st):

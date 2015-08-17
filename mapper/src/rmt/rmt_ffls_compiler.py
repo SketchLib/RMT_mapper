@@ -19,6 +19,8 @@ from rmt_dependency_analysis import RmtDependencyAnalysis
 class RmtFflsCompiler(RmtGreedyCompiler):
     def __init__(self, numSramBlocksReserved=0):
         RmtGreedyCompiler.__init__(self, numSramBlocksReserved, version="FFLS")
+        self.logger = logging.getLogger(__name__)
+
         pass
 
     def getNumStages(self, tableIndex):
@@ -37,7 +39,7 @@ class RmtFflsCompiler(RmtGreedyCompiler):
                                            lastBlock=lastBlock, numSramBlocksReserved=0)
             if fit['numMatchWords'] == 0:
                 name = self.program.names[tableIndex]
-                logging.info("getBestFitForBlocks: Can't fit any words of %s in st %d" % (name, st))
+                self.logger.info("getBestFitForBlocks: Can't fit any words of %s in st %d" % (name, st))
                 pass
 
             
@@ -48,7 +50,7 @@ class RmtFflsCompiler(RmtGreedyCompiler):
 
                 if fit['numMatchWords'] == 0:
                     name = self.program.names[tableIndex]
-                    logging.info("getBestFitForWords: Can't fit any words of %s in st %d" % (name, st))
+                    self.logger.info("getBestFitForWords: Can't fit any words of %s in st %d" % (name, st))
                     pass
 
                 pass
@@ -75,14 +77,14 @@ class RmtFflsCompiler(RmtGreedyCompiler):
                                       self.switch.memoryTypes])
         numStages = st
 
-        logging.info("%s needs %d stages plus  %s" %\
+        self.logger.info("%s needs %d stages plus  %s" %\
                          (self.program.names[tableIndex], st, lastStageInfo))
 
         return numStages
 
     
     def getOrderedTables(self):
-        logging.info("Number of stages taken by each table")
+        self.logger.info("Number of stages taken by each table")
         logMax = self.program.MaximumLogicalTables
         tableWeights = {}
         for log in range(logMax):
@@ -90,18 +92,18 @@ class RmtFflsCompiler(RmtGreedyCompiler):
             numStages = self.getNumStages(log)
             tableWeights[name] = numStages
             pass
-        logging.info("Table weights: %s" % tableWeights)
+        self.logger.info("Table weights: %s" % tableWeights)
         
         da = RmtDependencyAnalysis(self.program)
         programInfo = da.getPerLogProgramInfo(tableWeights)
 
         weightedGr = da.addWeights(da.flipEdgeSign(da.getDigraph()), tableWeights)
         edgeInfo =    ",".join(["%s: %s, " % (edge, weightedGr.edge_weight(edge)) for edge in weightedGr.edges()])
-        logging.debug("Edge weights in weighted graph: %s" % edgeInfo)
+        self.logger.debug("Edge weights in weighted graph: %s" % edgeInfo)
 
         
         gr = da.reverseEdges(weightedGr)
-        logging.info("\nCritical path in weighted graph: %s" % da.showPath(da.showCriticalPath(gr)))
+        self.logger.info("\nCritical path in weighted graph: %s" % da.showPath(da.showCriticalPath(gr)))
         
         tables = programInfo.keys()
         # tables farthest from end first
@@ -115,11 +117,11 @@ class RmtFflsCompiler(RmtGreedyCompiler):
             orderedTables[sortKey] =\
                 [(t, programInfo[t][sortKey]) for t in sortedTables[sortKey]]
         
-            logging.info("tables in order of %s: %s" % (sortKey, sortedTables[sortKey]))
+            self.logger.info("tables in order of %s: %s" % (sortKey, sortedTables[sortKey]))
             pass
 
         for table in sortedTables['distanceFromEnd']:
-            logging.info("Table %s: dist. from end is %d, .. weighted is %.2f" %\
+            self.logger.info("Table %s: dist. from end is %d, .. weighted is %.2f" %\
                              (table, programInfo[table]['distanceFromEnd'],\
                                   programInfo[table]['distanceFromEndWeighted']))
             pass
@@ -129,6 +131,6 @@ class RmtFflsCompiler(RmtGreedyCompiler):
         for o,t in self.orderedTables:
             string += o + "(" + str(t) + "), "
             pass
-        logging.info(string)
+        self.logger.info(string)
         pass
     pass

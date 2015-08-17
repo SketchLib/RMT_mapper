@@ -16,9 +16,10 @@ from pygraph.algorithms.critical import critical_path
 
 class RmtDependencyAnalysis:
     def __init__(self, program):
+        self.logger = logging.getLogger(__name__)
+
         self.program = program
         self.logMax = self.program.MaximumLogicalTables
-        self.logger = logging.getLogger(__name__)
         pass
 
     # THINGS YOU CAN DO WITH JUST THE PROGRAM

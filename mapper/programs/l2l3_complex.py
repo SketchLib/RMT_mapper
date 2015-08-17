@@ -15,7 +15,7 @@ numTables = 24
 
 class ProgramL2L3Complex:
     def __init__(self, numberOfEntriesDict = {}):
- 
+        self.logger = logging.getLogger(__name__)
         self.numTables = numTables
 
         self.t = np.zeros(self.numTables)
@@ -213,7 +213,7 @@ class ProgramL2L3Complex:
         self.setActionDataWidths()
         self.setWidths()
         
-        logging.debug("Number of entries per table")
+        self.logger.debug("Number of entries per table")
         defaultNumberOfEntriesDict = {'IG_Phy_Meta' : 4000.0, 'IG_Smac' : 128000.0, 'IG_Props' : 4000.0,\
             'IG_Bcast_Storm' : 64.0, 'IG_ACL1' : 8000.0, 'IG_Router_Mac' :\
             1000.0, 'Ipv4_Ucast_Host' : 128000.0, 'Ipv4_Ucast_LPM' :\
@@ -228,17 +228,17 @@ class ProgramL2L3Complex:
         for field in defaultNumberOfEntriesDict.keys():
             if field not in numberOfEntriesDict.keys():
                 valid = False
-                logging.warn(field + " not in dict, invalid")
+                self.logger.warn(field + " not in dict, invalid")
                 pass
             pass
 
         if not valid:
-            logging.warn("INVALID number of entries, using DEFAULT")
+            self.logger.warn("INVALID number of entries, using DEFAULT")
             self.numberOfEntriesDict = defaultNumberOfEntriesDict
             pass
         else:
             self.numberOfEntriesDict = numberOfEntriesDict
-        logging.debug("number of entries: " + str(self.numberOfEntriesDict))
+        self.logger.debug("number of entries: " + str(self.numberOfEntriesDict))
 
         self.setNumberOfEntries()
 
@@ -251,7 +251,7 @@ class ProgramL2L3Complex:
               " # sets " + str(self.sets[table]) +\
               " action data width " + str(self.aw[table]) + "\n"
             pass
-        logging.debug(string)
+        self.logger.debug(string)
 
         self.md = []
         # no mcast dependency on ecmp.
@@ -268,30 +268,30 @@ class ProgramL2L3Complex:
             (EG_Props, EG_ACL1), (EG_Phy_Meta, EG_ACL1)]
 
 
-        logging.debug("Match dependencies")
+        self.logger.debug("Match dependencies")
         for (table2, table1) in self.md:
-            logging.debug(str(table2) + " " + self.names[table2] + " <- " + str(table1) + " " + self.names[table1])
+            self.logger.debug(str(table2) + " " + self.names[table2] + " <- " + str(table1) + " " + self.names[table1])
             pass
         
         self.ad = [(Ipv4_Ucast_Host, Ipv4_Ucast_LPM), (Ipv6_Ucast_Host, Ipv6_Ucast_LPM)]
 
-        logging.debug("Action dependencies")
+        self.logger.debug("Action dependencies")
         for (table2, table1) in self.ad:
-            logging.debug(str(table2) + " " + self.names[table2] + " <- " + str(table1) + " " + self.names[table1])
+            self.logger.debug(str(table2) + " " + self.names[table2] + " <- " + str(table1) + " " + self.names[table1])
             pass
 
         self.setSuccessorDependencies()
-        logging.debug("Successor dependencies")
+        self.logger.debug("Successor dependencies")
         for (table1, table2) in self.sd:
-            logging.debug(self.names[table2] + " <- " + self.names[table1])
+            self.logger.debug(self.names[table2] + " <- " + self.names[table1])
             pass
 
         rmd = [(IG_Smac, Ipv4_Nexthop), (IG_Smac, Ipv6_Nexthop), \
                (IG_Bcast_Storm, Ipv4_Nexthop), (IG_Bcast_Storm, Ipv6_Nexthop)]
 
-        logging.debug("Rev. match dependencies")
+        self.logger.debug("Rev. match dependencies")
         for (table1, table2) in rmd:
-            logging.debug(self.names[table2] + " <- " + self.names[table1])
+            self.logger.debug(self.names[table2] + " <- " + self.names[table1])
             pass
 
         self.sd += rmd # Reverse match counts as successor
@@ -329,7 +329,7 @@ class ProgramL2L3Complex:
                 useMem['tcam'].append(table)
                 pass
             else:
-                logging.warn("Table " + str(table) + " doesn't have recog. match type")
+                self.logger.warn("Table " + str(table) + " doesn't have recog. match type")
                 pass
             pass
             
@@ -401,7 +401,7 @@ class ProgramL2L3Complex:
                 pass
             pass
 
-        logging.debug(fields)
+        self.logger.debug(fields)
         
         for table in range(self.numTables):
             w[table] = sum([self.width[f] for f in self.matchesOn[table]])

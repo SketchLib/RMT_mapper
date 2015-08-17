@@ -356,8 +356,8 @@ def getProgramInfo(input_hlir):
     
     programInfo["successorDependencies"] = getDepsByIndex(successorDeps)
 
-    print "UNIQUE SUCCESOR DEPS: %s" % uniqueSuccessorDeps
-    print "SUCCESSOR DEPS NOT IN MATCH OR ACTION: %s" % successorDeps
+    logging.debug("UNIQUE SUCCESOR DEPS: %s" % uniqueSuccessorDeps)
+    logging.debug("SUCCESSOR DEPS NOT IN MATCH OR ACTION: %s" % successorDeps)
     
 
     

@@ -1,11 +1,8 @@
 import random
 import numpy as np
 import math
-import matplotlib
 import textwrap
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
+
 from datetime import datetime
 import logging
 
@@ -15,9 +12,23 @@ from pygraph.classes.digraph import digraph
 from pygraph.algorithms.minmax import shortest_path
 from pygraph.algorithms.critical import critical_path
 
+import traceback
+
+# PLOTTING MODULES
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from matplotlib.backends.backend_pdf import PdfPages
+except:
+    logging.info(traceback.print_exc())
+    pass
+
 class RmtConfiguration:
     def __init__(self, program, switch, preprocess,\
                      layout, version):
+        self.logger = logging.getLogger(__name__)
+
         self.program = program
         self.da = RmtDependencyAnalysis(program)
         self.switch = switch
@@ -35,7 +46,6 @@ class RmtConfiguration:
         for mem in self.switch.allTypes:
             self.pfMax[mem] = preprocess.layout[mem].shape[1]
             pass
-        self.logger = logging.getLogger(__name__)
         self.logger.debug("PFMAX: %s" % self.pfMax)
         self.configure(layout)
         pass
@@ -374,7 +384,7 @@ class RmtConfiguration:
         for table in self.program.names:
             index = self.program.names.index(table)
             code = logColors[index]
-            print "%s: %s" % (table, code)
+            #print "%s: %s" % (table, code)
             pass
         """
         for d in [groupColors, colorGroups, logColors]:

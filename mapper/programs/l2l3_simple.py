@@ -11,7 +11,7 @@ Routable, Acl, Smac_Vlan, Vrf, UrpfV4, UrpfV6, Igmp_Snooping, Check_Ipv6,\
 
 class ProgramL2L3Simple:
     def __init__(self, numberOfEntriesDict={}):
- 
+        self.logger = logging.getLogger(__name__)
         self.numTables = Dmac_Vlan + 1
 
         self.t = np.zeros(self.numTables)
@@ -195,24 +195,24 @@ class ProgramL2L3Simple:
         self.setActionDataWidths()
         self.setWidths()
         
-        logging.debug("Number of entries per table")
+        self.logger.debug("Number of entries per table")
         defaultNumberOfEntriesDict = {'Acl':80000.0, 'Ipv4_Forwarding': 160000, 'Smac_Vlan': 160000, 'Routable': 64, 'Ipv6_Prefix': 1000,\
                                                         'Ipv6_Forwarding': 5000, 'Ipv4_Xcast_Forwarding': 16000, 'Ipv6_Xcast_Forwarding': 1000}
         valid = True
         for field in defaultNumberOfEntriesDict.keys():
             if field not in numberOfEntriesDict.keys():
                 valid = False
-                logging.debug(field + " not in dict, invalid")
+                self.logger.debug(field + " not in dict, invalid")
                 pass
             pass
 
         if not valid:
-            logging.debug("INVALID number of entries, using DEFAULT")
+            self.logger.debug("INVALID number of entries, using DEFAULT")
             self.numberOfEntriesDict = defaultNumberOfEntriesDict
             pass
         else:
             self.numberOfEntriesDict = numberOfEntriesDict
-        logging.debug("number of entries: " + str(self.numberOfEntriesDict))
+        self.logger.debug("number of entries: " + str(self.numberOfEntriesDict))
 
         self.setNumberOfEntries()
         string = ""
@@ -224,7 +224,7 @@ class ProgramL2L3Simple:
               " # sets " + str(self.sets[table]) +\
               " action data width " + str(self.aw[table]) + "\n"
             pass
-        logging.debug(string)
+        self.logger.debug(string)
         
         flows = {}
         flows['Ipv4'] = [Smac_Vlan, Acl, Routable, UrpfV4, Ipv4_Forwarding, Next_Hop, Dmac_Vlan]
@@ -244,9 +244,9 @@ class ProgramL2L3Simple:
                    any(f in self.matchesOn[flows[fl][index2]] for f in self.sets[flows[fl][index1]])]
         self.md = list(set(self.md))
 
-        logging.debug("Match dependencies")
+        self.logger.debug("Match dependencies")
         for (table2, table1) in self.md:
-            logging.debug(str(table2) + " " + self.names[table2] + " <- " + str(table1) + " " + self.names[table1])
+            self.logger.debug(str(table2) + " " + self.names[table2] + " <- " + str(table1) + " " + self.names[table1])
             pass
 
         self.ad = []
@@ -260,9 +260,9 @@ class ProgramL2L3Simple:
                    (flows[fl][index1], flows[fl][index2]) not in self.md]
 
         self.ad = list(set(self.ad))
-        logging.debug("Action dependencies")
+        self.logger.debug("Action dependencies")
         for (table2, table1) in self.ad:
-            logging.debug(str(table2) + " " + self.names[table2] + " <- " + str(table1) + " " + self.names[table1])
+            self.logger.debug(str(table2) + " " + self.names[table2] + " <- " + str(table1) + " " + self.names[table1])
             pass
 
         self.setSuccessorDependencies()
@@ -282,14 +282,14 @@ class ProgramL2L3Simple:
         
         rmd = list(set(rmd))
 
-        logging.debug("Rev. match dependencies")
+        self.logger.debug("Rev. match dependencies")
         for (table2, table1) in rmd:
-            logging.debug(self.names[table2] + " <- " + self.names[table1])
+            self.logger.debug(self.names[table2] + " <- " + self.names[table1])
             pass
 
-        logging.debug("Successor dependencies")
+        self.logger.debug("Successor dependencies")
         for (table1, table2) in self.sd:
-            logging.debug(self.names[table2] + " <- " + self.names[table1])
+            self.logger.debug(self.names[table2] + " <- " + self.names[table1])
             pass
 
         self.sd += rmd
@@ -381,7 +381,7 @@ class ProgramL2L3Simple:
                 pass
             pass
 
-        logging.debug(fields)
+        self.logger.debug(fields)
         
         for table in range(self.numTables):
             w[table] = sum([self.width[f] for f in self.matchesOn[table]])

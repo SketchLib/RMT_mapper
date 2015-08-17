@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 
 """
@@ -11,6 +12,8 @@ depth = {'mapper':64, 'ffu':1000,'bst':16000, 'hashtable':16000}
 width = {'mapper':48, 'ffu':36,'bst':36, 'hashtable':72}
 class FlexpipeSwitch:
     def __init__(self, numSlices=numSlices, order=order, maxTablesPerSlice=maxTablesPerSlice, depth=depth, width=width):
+        self.logger = logging.getLogger(__name__)
+
         memoryTypes = numSlices.keys()
         self.memoryTypes = memoryTypes
         self.numSlices = numSlices

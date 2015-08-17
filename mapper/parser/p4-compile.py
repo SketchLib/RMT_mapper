@@ -71,11 +71,17 @@ def getFile(path):
 
 # GENERATE LOG FILE NAME
 try:
-    jobId= "_".join(["%s-%s" % (module[0], module[1]) for module in\
+
+    jobId= "_".join([("%s" % (module[1])) for module in\
                          [(getFile(args.compiler_file), args.compiler),\
-                              (getFile(args.program)),\
-                              (getFile(args.switch_file), args.switch),\
-                              (getFile(args.preprocessor_file), args.preprocessor)]])
+                              (None, args.program),\
+                              (getFile(args.switch_file), args.switch)]])
+
+#     jobId= "_".join(["%s-%s" % (module[0], module[1]) for module in\
+#                          [(getFile(args.compiler_file), args.compiler),\
+#                               (getFile(args.program)),\
+#                               (getFile(args.switch_file), args.switch),\
+#                               (getFile(args.preprocessor_file), args.preprocessor)]])
     if args.run is not None:
         jobId += "_%s" % args.run
         pass
@@ -98,8 +104,8 @@ try:
     logFile = args.log_directory + jobId + ".log"
     print "logFile: " + logFile
 except:
-    exc_info = sys.exc_info()
-    print "Could not generate log file name " + str(exc_info[0]) + "\n" + str(exc_info)
+    print "Could not generate log file name "
+    traceback.print_exc()
     print "Error! Exiting!"
     exit()
     pass
@@ -113,8 +119,8 @@ try:
     print "Logging level is %d" % numeric_level
     logging.basicConfig(level=numeric_level, filename=logFile, filemode='w')
 except:
-    exc_info = sys.exc_info()
-    print "Could not setup logging " + str(exc_info[0]) + "\n" + str(exc_info)
+    print "Could not setup logging "
+    traceback.print_exc()
     print "Error! Exiting!"
     exit()
     pass
@@ -128,11 +134,11 @@ try:
     query['preprocess']['configFile'] = args.preprocessor_file
     query = getModules(query)
 except:
-    exc_info = sys.exc_info()
-    logging.error("Could not get valid compiler, switch, preprocessor modules " + str(exc_info[0]) + "\n" + str(exc_info))
+    logging.error("ERROR!!! Could not get valid compiler, switch, preprocessor modules ")
+    logging.error(traceback.format_exc())
     print "Error! Exiting! Check log file"
     exit()
-    pass
+    pass    
 
     
 logging.info(jobId)
@@ -169,8 +175,8 @@ try:
             pass
         pass
 except:
-    exc_info = sys.exc_info()
-    logging.error("Could not set up compiler module using command line options " + str(exc_info[0]) + "\n" + str(exc_info))
+    logging.error("ERROR!!! Could not set up compiler module using command line options ")
+    logging.error(traceback.format_exc())
     print "Error! Exiting! Check log file"
     exit()
     pass
@@ -191,8 +197,19 @@ try:
     h.build()
     program = hlirToProgram.getProgram(h)
 except:
-    exc_info = sys.exc_info()
-    logging.error("Could not get a valid TDG from P4 program " + str(exc_info[0]) + "\n" + str(exc_info))
+    logging.error("Could not get a valid TDG from P4 program ")
+    logging.error(traceback.format_exc())
+    print "Error! Exiting! Check log file"
+    exit()
+    pass
+
+# DISPLAY PROGRAM INFO
+try:
+    logging.info("Program Info")
+    program.showProgramInfo()
+except:
+    logging.error("ERROR!!! Could not output program info ")
+    logging.error(traceback.format_exc())
     print "Error! Exiting! Check log file"
     exit()
     pass
@@ -201,25 +218,28 @@ except:
 try:
     preprocess.preprocess(program=program, switch=switch)
 except:
-    exc_info = sys.exc_info()
-    logging.error("Could not preprocess program and switch " + str(exc_info[0]) + "\n" + str(exc_info))
+    logging.error("ERROR!!! Could not preprocess program and switch ")
+    logging.error(traceback.format_exc())
     print "Error! Exiting! Check log file"
     exit()
     pass
 
 # COMPILE
-try:    
+try:
+    logging.info("Compiling ...")
     start = time.time()
     configs = compiler.solve(program=program, switch=switch, preprocess=preprocess)
     end = time.time()
+    logging.info("Finished compiling.")
 except:
     exc_info = sys.exc_info()
-    logging.error("Compiler terminated unexpectedly " + str(exc_info[0]) + "\n" + str(exc_info))
+    logging.error("ERROR!!! Compiler terminated unexpectedly ")
+    logging.error(traceback.format_exc())
     print "Error! Exiting! Check log file"
     exit()
     pass
 
-
+logging.info("Final switch configurations")
 for k in configs.keys():
     logging.info("\nDisplaying config for %s" % k)
     config = configs[k]
@@ -231,10 +251,10 @@ for k in configs.keys():
         assignInfo = config.getPerLogAssignInfo()
 
         config.display()
-        logging.info("\nCritical path: %s\n\n" % (da.showPath(criticalPath, assignInfo)))
+        logging.info("\nCritical path: %s" % (da.showPath(criticalPath, assignInfo)))
 
         index = 1
-        logging.info("Tables that start later than expected from TDG due to resource constraints:")
+        logging.info("Tables that start later than expected")
         for table in program.names:
             canStart = progInfo[table]['earliestStage']
             startsIn = assignInfo[table]['start']
@@ -244,18 +264,17 @@ for k in configs.keys():
                 msg = "%d) %s can start in %d, but starts in %d. " % (index, table, canStart, startsIn)
                 logging.info(msg)
                 index += 1
-                pass
+                pass            
             pass
 
         logging.info("Setup")
         config.displayInitialConditions()
     except:
-        exc_info = sys.exc_info()
-        logging.error("Error outputting compiler results: " + str(exc_info[0]) + "\n" + str(exc_info))
+        logging.error("ERROR!!! Error outputting compiler results")
+        logging.error(traceback.format_exc())
         print "Error! Exiting! Check log file"
         exit()
         pass
-
     pass
 
 if args.picture_prefix is not None:
@@ -268,12 +287,11 @@ if args.picture_prefix is not None:
             pass
         pass
     except:
-        exc_info = sys.exc_info()
-        logging.error("Error converting compilers results to PDF picture: " + str(exc_info[0]) + "\n" + str(exc_info))
+        logging.error("ERROR!!! Error converting compilers results to PDF picture")
+        logging.error(traceback.format_exc())
         print "Error! Exiting! Check log file"
         exit()
     pass
-
 
 sortedKeys = sorted(compiler.results.keys())
 string = ""

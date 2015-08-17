@@ -16,6 +16,7 @@ from pygraph.algorithms.critical import critical_path
 
 class FlexpipeDependencyAnalysis:
     def __init__(self, program):
+        self.logger = logging.getLogger(__name__)
         self.program = program
         self.logMax = self.program.MaximumLogicalTables
         pass
@@ -30,32 +31,32 @@ class FlexpipeDependencyAnalysis:
         for pair in program.logicalSuccessorDependencyList:
             log1 = program.names[pair[0]]
             log2 = program.names[pair[1]]
-            logging.debug("adding successor edge " + log1 + " -> " + log2)
+            self.logger.debug("adding successor edge " + log1 + " -> " + log2)
             gr.add_edge((log2,log1),0, attrs=[("type", "SUCCESSOR")])
             pass
 
         for pair in program.logicalMatchDependencyList:
             log1 = program.names[pair[0]]
             log2 = program.names[pair[1]]
-            logging.debug("adding match edge " + log1 + " -> " + log2)
+            self.logger.debug("adding match edge " + log1 + " -> " + log2)
             gr.add_edge((log2,log1),-1, attrs=[("type", "MATCH")])
             pass
 
         for pair in program.logicalActionDependencyList:
             log1 = program.names[pair[0]]
             log2 = program.names[pair[1]]
-            logging.debug("adding action edge " + log1 + " -> " + log2)
+            self.logger.debug("adding action edge " + log1 + " -> " + log2)
             gr.add_edge((log2,log1),-1, attrs=[("type", "ACTION")])
             pass
 
         for log in program.names:
             if gr.neighbors(log) == []:
                 gr.add_edge((log, 'start'),0, attrs=[("type", "SUCCESSOR")])
-                logging.debug("adding edge " + " start " + " -> " + log)
+                self.logger.debug("adding edge " + " start " + " -> " + log)
                 pass
             if gr.incidents(log) == []:
                 gr.add_edge(('end',log),0, attrs=[("type", "SUCCESSOR")])
-                logging.debug("adding edge " + log + " -> " + " end ")
+                self.logger.debug("adding edge " + log + " -> " + " end ")
                 pass
             pass
         return gr
@@ -102,7 +103,7 @@ class FlexpipeDependencyAnalysis:
 
     def showPath(self, path, nodeInfo=None):
         if len(path) == 0:
-            logging.warn("EMPTY PATH")
+            self.logger.warn("EMPTY PATH")
             return ""
 
         pathStr = path[0]['node1']
@@ -146,7 +147,7 @@ class FlexpipeDependencyAnalysis:
             nodes = [n for n in reversed(nodes)]
             path = self.makePath(nodes, grFromStart)            
             pathStr += self.showPath(path)
-            #logging.info(pathStr)
+            #self.logger.info(pathStr)
             return path
 
         grFromEnd = self.getDigraph()
@@ -188,11 +189,11 @@ class FlexpipeDependencyAnalysis:
         gr = self.getDigraphFromStartPositive()
         criticalPath = critical_path(gr)
         nodes = [n for n in criticalPath]
-        logging.info("nodes %s" % str(nodes))
+        self.logger.info("nodes %s" % str(nodes))
         path = self.makePath(nodes, gr)
         pathStr = self.showPath(path)
         numMADeps =  path[-1]['totalEdgeWeight']
-        logging.info("critical path: %s, %d match/action deps- " % (pathStr, numMADeps)+\
+        self.logger.info("critical path: %s, %d match/action deps- " % (pathStr, numMADeps)+\
                          "needs %d stages" % (numMADeps + 1))
         return path
     pass

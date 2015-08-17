@@ -19,28 +19,23 @@ def getRmtSwitch(d):
     
     return switch
 
-def getProgramDcUnify(d):
-    from mapper.programs.dc_unify import ProgramDcUnify
-    program = ProgramDcUnify(numberOfEntriesDict=d['numberOfEntriesDict'])
-    return program.program
-
 def getProgramL2L3SimpleMtag(d):
-    from mapper.programs.l2l3_simple_mtag import ProgramL2L3SimpleMtag
+    from mapper.tdg_programs.l2l3_simple_mtag import ProgramL2L3SimpleMtag
     program = ProgramL2L3SimpleMtag(numberOfEntriesDict=d['numberOfEntriesDict'])
     return program.program
 
 def getProgramL2L3Simple(d):
-    from mapper.programs.l2l3_simple import ProgramL2L3Simple
+    from mapper.tdg_programs.l2l3_simple import ProgramL2L3Simple
     program = ProgramL2L3Simple(numberOfEntriesDict=d['numberOfEntriesDict'])
     return program.program
 
 def getProgramL2L3Complex(d):
-    from mapper.programs.l2l3_complex import ProgramL2L3Complex
+    from mapper.tdg_programs.l2l3_complex import ProgramL2L3Complex
     program = ProgramL2L3Complex(numberOfEntriesDict=d['numberOfEntriesDict'])
     return program.program
 
 def getProgramL3Dc(d):
-    from mapper.programs.l3_dc import ProgramL3Dc
+    from mapper.tdg_programs.l3_dc import ProgramL3Dc
     program = ProgramL3Dc(numberOfEntriesDict=d['numberOfEntriesDict'])
     return program.program
 
@@ -131,17 +126,17 @@ def getFlexpipeSwitch(d):
     return switch
 
 def getProgramDdSmall(d):
-    from mapper.programs.dd_small import ProgramDdSmall
+    from mapper.tdg_programs.dd_small import ProgramDdSmall
     program = ProgramDdSmall(numberOfEntriesDict=d['numberOfEntriesDict'])
     return program.program
 
 def getProgramDdMtag(d):
-    from mapper.programs.dd_mtag import ProgramDdMtag
+    from mapper.tdg_programs.dd_mtag import ProgramDdMtag
     program = ProgramDdMtag(numberOfEntriesDict=d['numberOfEntriesDict'])
     return program.program
 
 def getProgramDdMtagSmall(d):
-    from mapper.programs.dd_mtag_small import ProgramDdMtagSmall
+    from mapper.tdg_programs.dd_mtag_small import ProgramDdMtagSmall
     program = ProgramDdMtagSmall(numberOfEntriesDict=d['numberOfEntriesDict'])
     return program.program
 
@@ -219,6 +214,7 @@ def parseSilently(line):
     line.rstrip("\n")
     keyValuePairs = [[k.lstrip().rstrip().replace(';',',') for k in pair.split("=")] for pair in line.split(",")]
     stringDict = {}
+    #print(keyValuePairs)
     for (k,v) in keyValuePairs:
         stringDict[k] = v
         pass
@@ -256,7 +252,6 @@ def getModuleFromStringDict(sd):
                     'ProgramL2L3SimpleMtag':getProgramL2L3SimpleMtag,\
                     'ProgramL2L3Complex':getProgramL2L3Complex,\
                      'ProgramL3Dc':getProgramL3Dc,\
-                     'ProgramDcUnify':getProgramDcUnify,\
                     'RmtFflCompiler':getRmtFflCompiler,\
                      'RmtFflsCompiler':getRmtFflsCompiler,\
                     'RmtFfdCompiler':getRmtFfdCompiler,\

@@ -14,6 +14,7 @@ from pygraph.algorithms.minmax import shortest_path
 
 class FlexpipeLptCompiler:
     def __init__(self):
+        self.logger = logging.getLogger(__name__)
         pass
 
     def getIndex(self, table, names):
@@ -23,7 +24,7 @@ class FlexpipeLptCompiler:
                 return i
             i += 1
             pass
-        logging.warn(str(table) + " not found in names.")
+        self.logger.warn(str(table) + " not found in names.")
         return len(names)
     
 
@@ -37,12 +38,12 @@ class FlexpipeLptCompiler:
     
     def getNextTable(self):
         succWeight = 0
-#        logging.debug("Looking for next table")
+#        self.logger.debug("Looking for next table")
         for table in self.orderedTables:
             if table not in self.assigned:
-                logging.debug("Table " + table + "?")
+                self.logger.debug("Table " + table + "?")
                 previousTables = self.gr.neighbors(table)
-                logging.debug("Must assign " + str(previousTables) + " first")
+                self.logger.debug("Must assign " + str(previousTables) + " first")
                 leftToAssign = len(previousTables)
                 for prev in previousTables:
                     if prev in self.assigned:
@@ -56,7 +57,7 @@ class FlexpipeLptCompiler:
                     return table, max(earliestStage)
                 pass
             pass
-        logging.debug("No table left that can be assigned.")
+        self.logger.debug("No table left that can be assigned.")
         return None
 
     def getMem(self, tableIndex):
@@ -79,14 +80,14 @@ class FlexpipeLptCompiler:
         for pair in program.logicalSuccessorDependencyList:
             log1 = program.names[pair[0]]
             log2 = program.names[pair[1]]
-            logging.debug("adding successor edge " + log1 + " -> " + log2)
+            self.logger.debug("adding successor edge " + log1 + " -> " + log2)
             gr.add_edge((log2,log1),0)
             pass
 
         for pair in program.logicalMatchDependencyList:
             log1 = program.names[pair[0]]
             log2 = program.names[pair[1]]
-            logging.debug("adding match edge " + log1 + " -> " + log2)
+            self.logger.debug("adding match edge " + log1 + " -> " + log2)
             gr.add_edge((log2,log1),-1)
 
             pass
@@ -94,18 +95,18 @@ class FlexpipeLptCompiler:
         for pair in program.logicalActionDependencyList:
             log1 = program.names[pair[0]]
             log2 = program.names[pair[1]]
-            logging.debug("adding action edge " + log1 + " -> " + log2)
+            self.logger.debug("adding action edge " + log1 + " -> " + log2)
             gr.add_edge((log2,log1),0)
             pass
 
         for log in program.names:
             if gr.neighbors(log) == []:
                 gr.add_edge((log, 'start'),0)
-                logging.debug("adding edge " + " start " + " -> " + log )
+                self.logger.debug("adding edge " + " start " + " -> " + log )
                 pass
             if gr.incidents(log) == []:
                 gr.add_edge(('end',log),0)
-                logging.debug("adding edge " + log + " -> " + " end ")
+                self.logger.debug("adding edge " + log + " -> " + " end ")
                 pass
             pass
         self.gr = gr
@@ -129,8 +130,8 @@ class FlexpipeLptCompiler:
                     pass
                 pass
             pass
-        logging.debug("Valid memories per stage")
-        logging.debug(self.memPerStage)
+        self.logger.debug("Valid memories per stage")
+        self.logger.debug(self.memPerStage)
         pass
     
     def setupTablesInSlice(self):
@@ -201,7 +202,7 @@ class FlexpipeLptCompiler:
             index = self.getIndex(t,self.program.names)
             width[t] = self.program.logicalTableWidths[index]
             mems[t] = self.getMem(index)
-            logging.info("Table %s,\n" % t +\
+            self.logger.info("Table %s,\n" % t +\
                              "max. dist. from end: %d" % abs(distFromEnd[t]) +\
                              ", valid memory types: %s" % str(mems[t]))
             pass
@@ -215,7 +216,7 @@ class FlexpipeLptCompiler:
             pass
 
         for t in sorted(possible_stages.keys(), key=lambda t: len(possible_stages[t])):
-            logging.info("Table %s can go in stages %s" % (t, possible_stages[t]))
+            self.logger.info("Table %s can go in stages %s" % (t, possible_stages[t]))
             pass
                 
         tables.append('start')
@@ -233,7 +234,7 @@ class FlexpipeLptCompiler:
 
         sortby = sorted(tables, key = lambda t: (len(possible_stages[t]),-width[t]))
         for t in sortby:
-            logging.info("Table %s can go in stages %s, has width %d" % (t, possible_stages[t], width[t]))
+            self.logger.info("Table %s can go in stages %s, has width %d" % (t, possible_stages[t], width[t]))
             pass
 
         self.orderedTables = sortby
@@ -310,8 +311,8 @@ class FlexpipeLptCompiler:
                 rowRange = rowRange[0:wordsLeft]
                 pass
 
-            #logging.debug("Row range: " + str(rowRange[0]) + ", " + str(rowRange[-1]))
-            #logging.debug("Slice range: " + str(newSlRange[0]) + ", " + str(newSlRange[-1]))
+            #self.logger.debug("Row range: " + str(rowRange[0]) + ", " + str(rowRange[-1]))
+            #self.logger.debug("Slice range: " + str(newSlRange[0]) + ", " + str(newSlRange[-1]))
 
             return newSlRange, rowRange
 
@@ -333,7 +334,7 @@ class FlexpipeLptCompiler:
                 pass
             self.numWordsLeft -= 1
             pass
-        logging.debug("Assigned " + str(len(self.rowRange)) + " rows from "\
+        self.logger.debug("Assigned " + str(len(self.rowRange)) + " rows from "\
                      + str(self.rowRange[0]) + " to " + str(self.rowRange[-1]) +\
                      "in slices " + str(self.slRange[0]) + " to " + str(self.slRange[-1])\
                      + " of " + mem)
@@ -351,17 +352,17 @@ class FlexpipeLptCompiler:
         for (st,mem) in self.memPerStage[index+1:]:
             if mem in self.mems:
                 if st != self.currentStage:
-                    logging.debug(" updating current stage to " + str(st))
+                    self.logger.debug(" updating current stage to " + str(st))
                     pass
                 self.currentStage = st
                 self.currentMem = self.getIndex(mem, self.mems)
-                logging.debug(" updating current memory type to " + self.mems[self.currentMem])
+                self.logger.debug(" updating current memory type to " + self.mems[self.currentMem])
                 return
             pass
 
         # couldn't find a next stage
         self.currentStage = self.switch.numStages
-        logging.warn("couldn't find a mem for " + self.table + " in remaining stages" +\
+        self.logger.warn("couldn't find a mem for " + self.table + " in remaining stages" +\
                      " updating current stage to " + str(self.currentStage)+\
                      " and current memory (irrelevant, doesn't work for "\
                      + self.table + "): " + self.memPerStage[self.currentMem][1])
@@ -406,7 +407,7 @@ class FlexpipeLptCompiler:
             self.tableIndex = self.getIndex(self.table, self.program.names)
             self.numWordsLeft = self.program.logicalTables[self.tableIndex]
             if self.numWordsLeft == 0:
-                logging.warn("Next table " + self.table + " is empty!!")
+                self.logger.warn("Next table " + self.table + " is empty!!")
                 self.assigned[self.table] = self.currentStage
                 continue                
 
@@ -422,7 +423,7 @@ class FlexpipeLptCompiler:
                                                             [self.tableIndex])
 
             nextTables += "%s (%d), " % (self.table, earliest)
-            logging.debug("Next table " + self.table + ", # words " + str(self.numWordsLeft) +\
+            self.logger.debug("Next table " + self.table + ", # words " + str(self.numWordsLeft) +\
                          ", # slices " + str(slicesNeeded) + ", earliest stage " +\
                          str(earliest))
                 
@@ -430,23 +431,23 @@ class FlexpipeLptCompiler:
             while self.numWordsLeft > 0 and self.currentStage < self.switch.numStages:
                 self.slRange, self.rowRange = self.getNextRange()
                 if any ([len(self.slRange)==0, len(self.rowRange)==0]):
-                    logging.debug("next range is empty, switchToNextstage()")
+                    self.logger.debug("next range is empty, switchToNextstage()")
                     self.switchToNextStage()                   
                     continue
                 else:
-                    logging.debug("assigning rows to table")
+                    self.logger.debug("assigning rows to table")
                     self.assignRowsToTable()
                     pass
                 pass
             
             if (self.numWordsLeft == 0 and self.currentStage < self.switch.numStages):
-                logging.debug("Finished " + self.table)
+                self.logger.debug("Finished " + self.table)
                 self.assigned[self.table] = self.currentStage
                 pass
 
             if (self.numWordsLeft > 0):
                 self.results['solved'] = False
-                logging.warn("No more memory for " + self.table)
+                self.logger.warn("No more memory for " + self.table)
                 pass
             pass
 
@@ -458,8 +459,8 @@ class FlexpipeLptCompiler:
         numTables = len(self.program.names) 
         
         
-        logging.debug(str(numAssigned) + " out of " + str(numTables+2))
-        logging.info("Tables assigned in order (tableName, earliestSt)- %s " %\
+        self.logger.debug(str(numAssigned) + " out of " + str(numTables+2))
+        self.logger.info("Tables assigned in order (tableName, earliestSt)- %s " %\
                         nextTables)
         if 'start' in self.assigned:
             numAssigned -= 1
@@ -473,7 +474,7 @@ class FlexpipeLptCompiler:
         config = FlexpipeConfiguration(program=self.program, switch=self.switch,\
                                       preprocess=self.preprocess, version="Greedy")
         config.configure(self.startRowDict, self.numberOfRowsDict)
-        logging.debug("done")
+        self.logger.debug("done")
 
         for mem in self.switch.memoryTypes:
             order = 0
