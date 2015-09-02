@@ -12,14 +12,11 @@ import p4_hlir.hlir.p4 as p4
 import p4_hlir.hlir.dependencies as dependencies
 import p4_hlir.hlir.table_dependency as table_dependency
 
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger()
 hlir=None
 
-logger.debug("CHECKING")
 from collections import OrderedDict, defaultdict
 
-
+logger = logging.getLogger(__name__)
 
 defaultMatch = {'width':32, 'match_type':'exact', 'action_widths':[0], 'num_entries':1024, 'num_action_words':1, 'fixed_action_data_per_stage':False}
 defaultCondition = {'width':1, 'match_type':'gw', 'action_widths':[0], 'num_entries':12, 'num_action_words':1, 'fixed_action_data_per_stage':False}
@@ -252,10 +249,10 @@ def unique_list(l, idfun=None):
     return result
 
     
-def getProgramInfo(input_hlir):
+def getProgramInfo(input_hlir, loglevel):
     global hlir
     hlir = input_hlir
-    logging.getLogger().setLevel(logging.DEBUG)
+    logger.setLevel(loglevel)
 
     graphs = {}
     graphs["ingress"] = table_dependency.rmt_build_table_graph_ingress(hlir)
@@ -356,8 +353,8 @@ def getProgramInfo(input_hlir):
     
     programInfo["successorDependencies"] = getDepsByIndex(successorDeps)
 
-    logging.debug("UNIQUE SUCCESOR DEPS: %s" % uniqueSuccessorDeps)
-    logging.debug("SUCCESSOR DEPS NOT IN MATCH OR ACTION: %s" % successorDeps)
+    logger.debug("UNIQUE SUCCESOR DEPS: %s" % uniqueSuccessorDeps)
+    logger.debug("SUCCESSOR DEPS NOT IN MATCH OR ACTION: %s" % successorDeps)
     
 
     
@@ -398,7 +395,7 @@ def showProgramInfo(input_hlir):
         infoStr += "%s dependencies: %s\n" % (name, depsByName[name])
         pass
 
-    logging.info(infoStr)
+    logger.info(infoStr)
 
     logger.info('%30s%4s%4s%4s%4s%8s%8s%5s%8s%20s' % ('tablename', 'T', 'IE', 'nxt','#A', 'S-size', '#M-E', 'M-W', '#A-E', 'A-W'))
     
