@@ -1,6 +1,10 @@
-for P4 programs, install p4-hlir
+Please e-mail Lavanya Jose (lavanyaj@cs.stanford.edu) for questions about the code.
 
-for dependency analysis, download python-graph
+# Dependencies #
+
+For P4 programs, install p4-hlir
+
+For dependency analysis, download python-graph
 
  - git clone https://github.com/pmatiello/python-graph.git
 
@@ -15,26 +19,26 @@ sudo apt-get install python-matplotlib
 sudo apt-get install python-pygraph
 
 
-make symbolic link to mapper directory in mapper/parser, call it mapper
+Make symbolic link to mapper directory in mapper/parser, call it mapper
 
  e.g., ln -s path_to_mapper_directory mapper
 
-COMPILING PROGRAMS
+# Compiling Programs #
 
-To compile a P4 program
+## To compile a P4 program ##
 
 cd mapper/parser
 
 python p4-compile.py -h   
 
-To compile a TDG version of program (e.g., those in mapper/tdg_programs)
+## To compile a TDG version of program (e.g., those in mapper/tdg_programs) ##
 
 cd mapper/parser
 
 python tdg-compile.py -h
 
 
-Some examples:
+## Some examples: ##
 
 Compiling L2L3Simple to RMT using FFD heuristic-
 
@@ -51,7 +55,6 @@ python p4-compile.py -p /Users/lav/p4factory/targets/dc_example/p4src/dc_example
 Compiling example P4 program mapper/p4_programs/l2l3_nsdi/p4src/l2l3_nsdi.p4
 python p4-compile.py -p mapper/p4_programs/l2l3_nsdi/p4src/l2l3_nsdi.p4 -c RmtFfdCompiler-16  -s RmtReal32 -r RmtPreprocess 
 
-USING ILP
+## Using ILP ##
 
 You need to install CPLEX and pycpx (see ilp_setup.txt) first.
-
