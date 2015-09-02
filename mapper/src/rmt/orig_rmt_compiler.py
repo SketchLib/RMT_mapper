@@ -1,35 +1,29 @@
-from pycpx import CPlexModel
+from ..base_compiler import BaseIlpCompiler
 import rmt_ffd_compiler
 import rmt_ffl_compiler
 from rmt_configuration import RmtConfiguration
-import numpy as np
-from datetime import datetime
-import time
-import logging
 """
+Using this as of 9/1/2015.
+
 Assign number of blocks for each layout, compute number
 of logical words from blocks.
 """
 
-class RmtIlpCompiler:
-    def __init__(self, relativeGap, greedyVersion,objectiveStr='maximumStage',\
-                     emphasis=0, timeLimit=None, treeLimit=None,\
-                     variableSelect=None, ignoreConstraint=None,\
-                     workMem=None,\
-                     nodeFileInd=None,\
-                     workDir=None):
-        self.logger = logging.getLogger(__name__)
+class RmtIlpCompiler(BaseIlpCompiler):
+    def __init__(self, relativeGap, epagap=None,
+                 greedyVersion=None,objectiveStr=None,
+                 emphasis=0, timeLimit=None, treeLimit=None, populateLimit=None,
+                 solnPoolIntensity=None, variableSelect=None, workMem=None,
+                 nodeFileInd=None, workDir=None, outputModelFile=None,
+                 ignoreConstraint=None):
+        if not objectiveStr:
+            objectiveStr = 'maximumStage'
 
-        self.objectiveStr=objectiveStr
-        self.relativeGap = relativeGap
-        self.greedyVersion = greedyVersion
-        self.emphasis = emphasis
-        self.variableSelect = variableSelect
-        self.timeLimit = timeLimit
-        self.treeLimit = treeLimit
-        self.workMem = workMem
-        self.nodeFileInd = nodeFileInd
-        self.workDir = workDir
+        BaseIlpCompiler.__init__(
+                self, relativeGap, greedyVersion, objectiveStr=objectiveStr,
+                emphasis=emphasis, timeLimit=timeLimit, treeLimit=treeLimit,
+                variableSelect=variableSelect,
+                workMem=workMem, nodeFileInd=nodeFileInd)
 
         self.ignoreConstraint = ignoreConstraint
         self.dictNumVariables = \
@@ -49,10 +43,10 @@ class RmtIlpCompiler:
             }
         self.numConstraints = 0
         self.dimensionSizes = {}
-        self.logger = self.logger.getLogger(__name__)
         pass
 
     def setDimensionSizes(self):
+        """Compute the number of constraints."""
         item_count_allmempflogst = 0
         for thing in self.switch.allTypes:
             item_count_allmempflogst += self.pfMax[thing]*self.logMax*self.stMax
@@ -73,18 +67,16 @@ class RmtIlpCompiler:
         pass
 
     def computeSum(self, dictCount):
+        """Compute the number of constraints."""
         log_list = []
         compute_value = 0
         for key in dictCount:
             log_list.append('%d*%s(%d)' % \
                 (dictCount[key], key, self.dimensionSizes[key]))
             compute_value += dictCount[key] * self.dimensionSizes[key]
-        self.logger.info("%s = %d" % (" + ".join(log_list), compute_value))
+        self.lg.info("%s = %d" % (" + ".join(log_list), compute_value))
 
         return compute_value
-
-    def P(self, l, m):
-        return l - m
 
     def actionAssignmentConstraint(self):
         """
@@ -97,11 +89,8 @@ class RmtIlpCompiler:
                     pass
                 else:
                     self.m.constrain(self.word['action'][log,st] >=\
-                                         self.word['sram'][log,st] +\
+                        self.word['sram'][log,st] +
                                          self.word['tcam'][log,st])
-                    pass
-                pass
-            pass
         self.dictNumConstraints['log*st'] += 1
         pass
 
@@ -252,7 +241,7 @@ class RmtIlpCompiler:
                  ", ".join(["%s: %s" % (self.program.names[log], tableInfo[log]) for log in tablesThatStart])
              pass
         
-        self.logger.info(stageInfo)
+        self.lg.info(stageInfo)
 
         startTimeOfStartStageOfLog = {}
         startTimeOfEndStageOfLog = {}
@@ -269,12 +258,12 @@ class RmtIlpCompiler:
                              startTimeOfStage[st-1] + self.switch.successorDelay):
                 roundOkay = (round(startTimeOfStage[st]) >=\
                              round(startTimeOfStage[st-1]) + self.switch.successorDelay)
-                level = self.logger.WARNING
+                level = self.lg.WARNING
                 if not roundOkay:
-                    level = self.logger.ERROR
+                    level = self.lg.ERROR
                     pass
 
-                self.logger.log(level, "successor dependency constraint on latency violated at %d" % st)
+                self.lg.log(level, "successor dependency constraint on latency violated at %d" % st)
             pass
         
         # match dependency
@@ -283,11 +272,11 @@ class RmtIlpCompiler:
                    startTimeOfEndStageOfLog[log1] + self.switch.matchDelay):
                 roundOkay = (round(startTimeOfStartStageOfLog[log2]) >=\
                                  round(startTimeOfEndStageOfLog[log1]) + self.switch.matchDelay)
-                level = self.logger.WARNING
+                level = self.lg.WARNING
                 if not roundOkay:
-                    level = self.logger.ERROR
+                    level = self.lg.ERROR
                     pass
-                self.logger.log(level,\
+                self.lg.log(level,\
                                     "match dependency (%s, %s)" % (self.program.names[log1], self.program.names[log2])\
                                     + " on latency violated:"\
                                     + " %s end stage starts at time %d." % ( self.program.names[log1], startTimeOfEndStageOfLog[log1])\
@@ -301,12 +290,12 @@ class RmtIlpCompiler:
                    startTimeOfEndStageOfLog[log1] + self.switch.actionDelay):
                 roundOkay = (round(startTimeOfStartStageOfLog[log2]) >=\
                                  round(startTimeOfEndStageOfLog[log1]) + self.switch.actionDelay)
-                level = self.logger.WARNING
+                level = self.lg.WARNING
                 if not roundOkay:
-                    level = self.logger.ERROR
+                    level = self.lg.ERROR
                     pass
 
-                self.logger.log(level,\
+                self.lg.log(level,\
                                     "action dependency (%s, %s) " % (self.program.names[log1], self.program.names[log2])\
                                  + " on latency violated:"\
                                  + " %s end stage starts at time %d." % ( self.program.names[log1], startTimeOfEndStageOfLog[log1])\
@@ -362,19 +351,19 @@ class RmtIlpCompiler:
         for log in range(self.logMax):
             if not(sum([endAllMem[log,st] for st in range(self.stMax)]) == 1):
                 roundOkay = (sum([round(endAllMem[log,st]) for st in range(self.stMax)]) == 1)
-                level = self.logger.WARNING
+                level = self.lg.WARNING
                 if not roundOkay:
-                    level = self.logger.ERROR
+                    level = self.lg.ERROR
                     pass
-                self.logger.log(level, "Constraint violated- more/less than one end stage for " + self.program.names[log])
+                self.lg.log(level, "Constraint violated- more/less than one end stage for " + self.program.names[log])
                 pass
             if not(sum([startAllMem[log,st] for st in range(self.stMax)]) == 1):
                 roundOkay = (sum([round(startAllMem[log,st]) for st in range(self.stMax)]) == 1)
-                level = self.logger.WARNING
+                level = self.lg.WARNING
                 if not roundOkay:
-                    level = self.logger.ERROR
+                    level = self.lg.ERROR
                     pass
-                self.logger.log(level, "Constraint violated- more/less than one start stage for " + self.program.names[log])
+                self.lg.log(level, "Constraint violated- more/less than one start stage for " + self.program.names[log])
                 pass
             pass
         pass
@@ -385,7 +374,7 @@ class RmtIlpCompiler:
         - number of RAMs for a match packing units (enforce one type per st)
         - + number of RAMs for an action packing unit
         """
-        self.logger.info("DISPLAY ACTIVE RAMS")
+        self.lg.info("DISPLAY ACTIVE RAMS")
         ramsForPUnits = 0
         for st in range(self.stMax):
             for log in range(self.logMax):
@@ -404,11 +393,11 @@ class RmtIlpCompiler:
 
                     if numPUnits > 0 and present == 0 or\
                             numPUnits == 0 and present == 1:
-                        self.logger.warn( "%s inconsistent for %s" %\
+                        self.lg.warn( "%s inconsistent for %s" %\
                                           (layoutStr, idStr))
                         pass
                     elif numPUnits > 0 and present > 0:
-                        self.logger.info(idStr)
+                        self.lg.info(idStr)
                         ramsForPUnits += ramsPerPUnit
                         pass
                     pass
@@ -424,16 +413,16 @@ class RmtIlpCompiler:
                     (numPUnits, present)
                 if numPUnits > 0 and present == 0 or\
                         numPUnits == 0 and present == 1:
-                    self.logger.warn( "%s inconsistent for %s" %\
+                    self.lg.warn( "%s inconsistent for %s" %\
                                       (layoutStr, idStr))
                     pass
                 elif numPUnits > 0 and present > 0:
-                    self.logger.info(idStr)
+                    self.lg.info(idStr)
                     ramsForPUnits += ramsPerPUnit
                     pass
                 
                 pass
-            self.logger.info("%d active RAMs over all stages" % ramsForPUnits)
+            self.lg.info("%d active RAMs over all stages" % ramsForPUnits)
             pass
         pass
 
@@ -444,11 +433,11 @@ class RmtIlpCompiler:
         for log in range(self.logMax):
             # there is exactly one starting stage
             numStartingStages[log] = sum([model[self.startAllMem][log,st] for st in range(self.stMax)])
-            self.logger.debug(self.program.names[log])
-            self.logger.debug(" numStartingStages: " + str(numStartingStages[log]))
+            self.lg.debug(self.program.names[log])
+            self.lg.debug(" numStartingStages: " + str(numStartingStages[log]))
             
             startStage[log] = sum([model[self.startAllMem][log,st] * st for st in range(self.stMax)])
-            self.logger.debug(" startStage: " + str(startStage[log]))
+            self.lg.debug(" startStage: " + str(startStage[log]))
             
             upperBound = self.stMax
             # if a stage has blocks, starting stage is at least as small
@@ -459,12 +448,12 @@ class RmtIlpCompiler:
                 if (startStage[log] > st and totalBlocks > 0):
                     binary = model[self.blockAllMemBin][log,st]
                     roundOkay = not (round(startStage[log]) > st and round(totalBlocks) > 0)
-                    level = self.logger.WARNING
+                    level = self.lg.WARNING
                     if not roundOkay:
-                        level = self.logger.ERROR
+                        level = self.lg.ERROR
                         pass
 
-                    self.logger.log(level, "startStage def. constraint violated for log %s, st %d: " % (self.program.names[log], st)\
+                    self.lg.log(level, "startStage def. constraint violated for log %s, st %d: " % (self.program.names[log], st)\
                                      + " Stage %d has %d mem. blocks in bin. %d ." % (st, totalBlocks, binary)\
                                      + " Lhs (start stage) = %d." % startStage[log]\
                                      + " Rhs = %d + (1-%d)*%d." % (st, int(model[self.blockAllMemBin][log,st]), upperBound)\
@@ -474,8 +463,8 @@ class RmtIlpCompiler:
             pass
             # starting stage has some blocks
             anyBlocksInStartStage[log] = sum([model[self.startAllMemTimesBlockAllMemBin][log,st] for st in range(self.stMax)])
-            self.logger.debug(self.program.names[log])
-            self.logger.debug(" anyBlocksInStartStage: " + str(anyBlocksInStartStage[log]))
+            self.lg.debug(self.program.names[log])
+            self.lg.debug(" anyBlocksInStartStage: " + str(anyBlocksInStartStage[log]))
             pass
 
         pass
@@ -657,12 +646,12 @@ class RmtIlpCompiler:
                 roundOkay = (sum([round(blockBin[log,st]) *\
                                      self.preprocess.inputCrossbarNumSubunits[mem][log] for log in range(self.logMax)])\
                                      <= numSubunitsAvailable)
-                level = self.logger.WARNING
+                level = self.lg.WARNING
                 if not roundOkay:
-                    level = self.logger.ERROR
+                    level = self.lg.ERROR
                     pass
 
-                self.logger.log(level, "Input Crossbar Constraint violated in st %d, mem %s" % (st,mem) +\
+                self.lg.log(level, "Input Crossbar Constraint violated in st %d, mem %s" % (st,mem) +\
                              "Used " + str(numSubunitsNeeded) +", Available " + str(numSubunitsAvailable))
                 pass
             pass        
@@ -852,7 +841,7 @@ class RmtIlpCompiler:
                 pass
             pass
 
-        self.logger.info(\
+        self.lg.info(\
        "Maximum stage in start solution is %.1f.." % maximumStage)
         isMaximumStage[maximumStage] = 1
         isMaximumStageTimesTotalBlocksForStBin[maximumStage] = 1
@@ -928,7 +917,7 @@ class RmtIlpCompiler:
                                       for mem in self.all])]
             pass
             if len(stages) == 0:
-                self.logger.warn("Warning! " + str(log) + " not assigned to any stage")
+                self.lg.warn("Warning! " + str(log) + " not assigned to any stage")
                 pass
             else:
                 startSt = int(min(stages))
@@ -957,15 +946,15 @@ class RmtIlpCompiler:
     def displayMaximumStage(self, model):
         maximumStage = sum([model[self.isMaximumStage][st]*st\
                                 for st in range(self.stMax)])
-        self.logger.info("maximum stage from model: %.1f" % maximumStage)
+        self.lg.info("maximum stage from model: %.1f" % maximumStage)
         numMaxStages = sum([model[self.isMaximumStage][st] for\
                                 st in range(self.stMax)])
-        self.logger.info("num maximum stages from model: %.1f" %\
+        self.lg.info("num maximum stages from model: %.1f" %\
                          numMaxStages)
         sumOverSt =\
             sum([model[self.isMaximumStageTimesTotalBlocksForStBin]\
                      [st] for st in range(self.stMax)])
-        self.logger.info(\
+        self.lg.info(\
             "sum over is max st time totalBlocksForStBin: %.1f" %\
                 sumOverSt)
         infoStr =\
@@ -987,7 +976,7 @@ class RmtIlpCompiler:
                         model[self.isMaximumStage][st],\
                         totalWoAction, totalWAction))
             pass
-        self.logger.info(infoStr)
+        self.lg.info(infoStr)
         pass
     
         
@@ -1001,7 +990,7 @@ class RmtIlpCompiler:
         # so start/ end/ max stage, latency etc.
         # based only on match RAMs
         self.all = self.switch.memoryTypes
-        self.logger.info("Types counted in start/end/max stage, latency: %s" %\
+        self.lg.info("Types counted in start/end/max stage, latency: %s" %\
                           self.all)
         ####################################################
         # Constants
@@ -1160,12 +1149,12 @@ class RmtIlpCompiler:
 
         self.startingDict = {}
 
-        self.logger.debug("Solving ")
+        self.lg.debug("Solving ")
         configs = {}
         if len(self.greedyVersion)>0:
             numSramBlocksReserved=int(self.greedyVersion.split("-")[1])
             ####################################################
-            self.logger.debug("Getting a greedy solution")
+            self.lg.debug("Getting a greedy solution")
             greedyCompiler = rmt_ffd_compiler.RmtFfdCompiler(numSramBlocksReserved)
             if 'ffl' in self.greedyVersion:
                 greedyCompiler = rmt_ffl_compiler.RmtFflCompiler(numSramBlocksReserved)
@@ -1177,24 +1166,24 @@ class RmtIlpCompiler:
 
             end = time.time()
             ####################################################
-            self.logger.debug("Displaying greedy solution")
+            self.lg.debug("Displaying greedy solution")
             greedyConfig.display()
             ####################################################
-            self.logger.debug("Saving results from greedy")
+            self.lg.debug("Saving results from greedy")
             self.results['greedyTotalUnassignedWords'] = greedyCompiler.results['totalUnassignedWords']
             self.results['greedySolveTime'] = greedyCompiler.results['solveTime']
             self.results['greedySolved'] = greedyCompiler.results['solved']
             self.results['greedyPipelineLatency'] = greedyCompiler.results['pipelineLatency']
             self.results['greedyPower'] = greedyCompiler.results['power']
             self.results['greedyNumStages'] = greedyCompiler.results['numStages']
-            self.logger.info("results[Greedy .." + str(self.results))
+            self.lg.info("results[Greedy .." + str(self.results))
 
             if not self.results['greedySolved']:
-                self.logger.warn("Greedy couldn't fit: " + str(self.results))
+                self.lg.warn("Greedy couldn't fit: " + str(self.results))
                 pass
 
             ####################################################
-            self.logger.debug("Starting with Greedy Solution as input")
+            self.lg.debug("Starting with Greedy Solution as input")
             self.getIlpStartingDictValues(block=greedyCompiler.block,\
                                           layout=greedyCompiler.layout,\
                                           word=greedyCompiler.word,\
@@ -1207,9 +1196,9 @@ class RmtIlpCompiler:
         pipelineLatency = self.startTimeOfStage[self.stMax-1]
         totalMemBlocks = sum([self.block[mem].T for mem in self.switch.allTypes])
         totalBlocks = (totalMemBlocks * np.ones(self.logMax)).T * np.ones(self.stMax)
-        self.logger.info("Shape of totalMemBlocks %s" % str(totalMemBlocks.shape))
-        self.logger.info("Shape of np.ones(self.logMax) %s" % str(np.ones(self.logMax).shape))
-        self.logger.info("Shape of np.ones(self.stMax) %s" % str(np.ones(self.stMax).shape))
+        self.lg.info("Shape of totalMemBlocks %s" % str(totalMemBlocks.shape))
+        self.lg.info("Shape of np.ones(self.logMax) %s" % str(np.ones(self.logMax).shape))
+        self.lg.info("Shape of np.ones(self.stMax) %s" % str(np.ones(self.stMax).shape))
 
         maximumLatency = self.switch.matchDelay * self.switch.numStages
         maximumStage = sum([self.isMaximumStage[st]*st\
@@ -1220,7 +1209,7 @@ class RmtIlpCompiler:
         self.getPowerForRamsAndTcamsObjective()
         powerForRamsAndTcams = self.powerForRamsAndTcams
         if self.objectiveStr == 'totalBlocks':
-            self.logger.info("Total blocks objective includes action RAMs, though stage/ latency vars don't")
+            self.lg.info("Total blocks objective includes action RAMs, though stage/ latency vars don't")
             pass
         totalBlocksAvailable = sum(sum(([self.switch.numSlices[mem] for mem in self.switch.memoryTypes])))
         objectives = {'pipelineLatency+totalBlocks':pipelineLatency/maximumLatency + totalBlocks/totalBlocksAvailable,\
@@ -1233,12 +1222,12 @@ class RmtIlpCompiler:
         nIterations = []
         
         self.setDimensionSizes()
-        self.logger.info("Computing variables:")
+        self.lg.info("Computing variables:")
         self.numVariables = self.computeSum(self.dictNumVariables)
-        self.logger.info("Computing Constraints:")
+        self.lg.info("Computing Constraints:")
         self.numConstraints = self.computeSum(self.dictNumConstraints)
-        self.logger.info("numRows: %d" % self.m.getNRows())
-        self.logger.info("numCols: %d" % self.m.getNCols())
+        self.lg.info("numRows: %d" % self.m.getNRows())
+        self.lg.info("numCols: %d" % self.m.getNCols())
         # FIND WHAT THE MINIMUM VALUE FOR OBJECTIVE STR IS
         try:
             self.m.minimize(objectives[self.objectiveStr], starting_dict=self.startingDict,\
@@ -1249,7 +1238,7 @@ class RmtIlpCompiler:
                                 variable_select=self.variableSelect)
             pass
         except Exception, e:
-            self.logger.exception(e)
+            self.lg.exception(e)
             pass
         self.checkConstraints(self.m)
 
@@ -1263,7 +1252,7 @@ class RmtIlpCompiler:
         # OTHERWISE ONLY UPPER BOUND ON NUMBER OF BLOCKS IS FROM CAPACITY CONSTRAINT
         objectiveValue = self.m[objectives[self.objectiveStr]]
         self.m.constrain(objectives[self.objectiveStr] <= objectiveValue)
-        self.logger.info("%s <= %.2f" % (self.objectiveStr, objectiveValue))
+        self.lg.info("%s <= %.2f" % (self.objectiveStr, objectiveValue))
         
         self.m.minimize(totalBlocks, starting_dict=self.startingDict,\
                             relative_gap=self.relativeGap)
@@ -1276,7 +1265,7 @@ class RmtIlpCompiler:
         minTotalMemBlocks = sum([self.m[self.block[mem]].T for mem in self.switch.allTypes])
         minTotalBlocks = int(round(sum([minTotalMemBlocks[st,log] for log in range(self.logMax)\
                                   for st in range(self.stMax)])))
-        self.logger.info("Total blocks <= %.1f" % minTotalBlocks)
+        self.lg.info("Total blocks <= %.1f" % minTotalBlocks)
         
         self.m.constrain(totalBlocks <= minTotalBlocks)
         self.m.minimize(pipelineLatency, starting_dict=self.startingDict,\
@@ -1286,7 +1275,7 @@ class RmtIlpCompiler:
         """
         
         ####################################################
-        self.logger.debug("Saving results from ILP")
+        self.lg.debug("Saving results from ILP")
         self.setIlpResults(solverTimes=solverTimes, nIterations=nIterations)
         ####################################################
         # Logging
@@ -1305,7 +1294,7 @@ class RmtIlpCompiler:
         self.results['solveTime'] = solveEnd - solveStart
 
         ####################################################
-        self.logger.debug("Displaying ILP solution")
+        self.lg.debug("Displaying ILP solution")
         config.display()
         ####################################################
         configs['ilp-%s' % self.objectiveStr] = config

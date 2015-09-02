@@ -137,6 +137,7 @@ class RmtPreprocess:
         # not optimizing, just fix pf per log. for TCAM for one entry per
         # pf-row. self.layoutTcam[0,log] is the number of blocks for the
         # smallest unit in the 0th layout for log
+       
 
         for mem in self.switch.unpackableMemTypes:
             self.layout[mem] = np.matrix([np.ceil(float(m)/switch.width[mem]) for m in\

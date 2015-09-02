@@ -1,4 +1,5 @@
 from pycpx import CPlexModel
+from base_compiler import BaseIlpCompiler
 import inspect
 import flexpipe_lpt_compiler
 from flexpipe_configuration import FlexpipeConfiguration
@@ -12,7 +13,7 @@ of logical words from blocks.
 """
 use_ilp = True # When False, solves LP.
 
-class FlexpipeIlpCompiler:
+class FlexpipeIlpCompiler(BaseIlpCompiler):
     def __init__(self, relativeGap=None,\
                      epagap = None,\
                      greedyVersion = None,\
@@ -125,30 +126,7 @@ class FlexpipeIlpCompiler:
     def newVar(self, dims, vtype, name, ub=None, lb=None, realOkay=True):
         if realOkay and vtype == int:
             vtype='real'
-            pass
-
-        if vtype == bool:
-            vtype = int
-            ub = 1
-            lb = 0
-            pass
-        
-        try:
-            assert(name not in self.variables)
-        except AssertionError as e:
-            e.args += (name, "length: ", len(self.variables))
-            raise
-        
-        self.variablesByName[name] =\
-            self.m.new(dims, vtype=vtype, name=name, ub=ub, lb=lb)
-        # So we can parametrize vars (as coming from m or some other dict)
-        # in all constraints.
-        self.variables[self.variablesByName[name]] = self.variablesByName[name]
-        self.names[self.variablesByName[name]] = name
-        self.varUb[name] = ub
-        self.varLb[name] = lb
-        self.varType[name] = vtype
-        return self.variablesByName[name]
+        BaseIlpCompiler.newVar(self, dims, vtype, name, ub, lb)
 
     def newConstr(self, expr):
         # if self.checking = True, add violated constraint to self.violated
@@ -249,95 +227,6 @@ class FlexpipeIlpCompiler:
                 pass
             pass
         return arr
-
-    def getTouchesStartingDictValues(self, model):
-        for mem in self.switch.memoryTypes:
-            maxIndex = sum(self.slMax[mem]) * self.logMax
-            maxIndexSlOL = sum(self.slMax[mem]) * self.logMax * self.orderMax
-            model[self.firstRowOfTableBeforeIfOrd[mem]] = np.zeros((maxIndexSlOL), dtype=np.int)
-            model[self.numberOfRowsOfTableBeforeIfOrd[mem]] = np.zeros((maxIndexSlOL), dtype=np.int)
-            model[self.firstRowOfTableBefore[mem]] = np.zeros((maxIndex), dtype=np.int)
-            model[self.numberOfRowsOfTableBefore[mem]] = np.zeros((maxIndex), dtype=np.int)
-            model[self.numberOfRowsOfTableBeforeBinary[mem]] = np.zeros((maxIndex), dtype=np.int)
-            model[self.firstRowOfTableMinusLastRowOfTableBeforeBinary[mem]] =\
-                np.zeros((maxIndex), dtype=np.int)
-            model[self.touchesTableBefore[mem]] = np.zeros((maxIndex), dtype=np.int)
-            model[self.notFirstTableInAllSlicesBinary[mem]] = np.zeros((maxIndex), dtype=np.int)
-            pass
-
-        memXLogXSl = [(mem,log,sl)\
-                          for mem in self.switch.memoryTypes\
-                          for log in range(self.logMax)\
-                          for sl in range(sum(self.slMax[mem]))]
-        for mem,log,sl in memXLogXSl:
-            totalFirstRow = 0
-            totalNumberOfRows = 0
-
-            for order in range(1,self.orderMax):
-                prod =\
-                    model[self.numberOfRowsOfOrd[mem]][self.iOSl(mem,order-1,sl)] *\
-                    model[self.ordToLog[mem]][self.iSlOL(mem,sl,order,log)]
-                model[self.numberOfRowsOfTableBeforeIfOrd[mem]][self.iSlOL(mem,sl,order,log)] = prod
-                totalNumberOfRows += prod
-
-                prod =\
-                    model[self.firstRowOfOrd[mem]][self.iOSl(mem,order-1,sl)] *\
-                    model[self.ordToLog[mem]][self.iSlOL(mem,sl,order,log)]
-                model[self.firstRowOfTableBeforeIfOrd[mem]][self.iSlOL(mem,sl,order,log)] = prod
-                totalFirstRow += prod            
-
-                pass
-            
-            model[self.firstRowOfTableBefore[mem]][self.iLSl(mem,log,sl)] = totalFirstRow
-            model[self.numberOfRowsOfTableBefore[mem]][self.iLSl(mem,log,sl)] = totalNumberOfRows
-        
-            ub = self.ub[mem]['numberOfRowsOfTableBefore']
-            binary = 0
-            if (round(model[self.numberOfRowsOfTableBefore[mem]][self.iLSl(mem,log,sl)]) > 0):
-                binary = 1
-                pass
-            model[self.numberOfRowsOfTableBeforeBinary[mem]][self.iLSl(mem,log,sl)] = binary
-
-            ub = self.ub[mem]['firstRowOfLog']
-            cont = model[self.firstRowOfLog[mem]][self.iLSl(mem,log,sl)]\
-                - model[self.numberOfRowsOfTableBefore[mem]][self.iLSl(mem,log,sl)]\
-                - model[self.firstRowOfTableBefore[mem]][self.iLSl(mem,log,sl)]
-            binary = 0
-            if (round(cont) > 0):
-                binary = 1
-                pass
-            model[self.firstRowOfTableMinusLastRowOfTableBeforeBinary[mem]][self.iLSl(mem,log,sl)] =\
-                binary
-
-
-            binary1 = model[self.numberOfRowsOfTableBeforeBinary[mem]][self.iLSl(mem,log,sl)]
-            model[self.touchesTableBefore[mem]][self.iLSl(mem,log,sl)] = binary1 * binary
-            pass
-
-        for (mem,log,sl) in memXLogXSl:
-            hasRows = model[self.numberOfRowsBinary[mem]][self.iLSl(mem,log,sl)]
-            touches = 0
-            firstTableInSl = 0
-            pf = self.preprocess.pfBlocks[mem][log]
-            for sl2 in range(sl, sl+pf):
-                touches += model[self.touchesTableBefore[mem]][self.iLSl(mem,log,sl)]
-                # If number of rows is 0, ordToLog can be 1?
-                firstTableInSl += model[self.ordToLog[mem]][self.iSlOL(mem,sl,0,log)]
-                pass
-
-            cont = pf - firstTableInSl # > 0 if not first table in all slices
-            binary = 0
-            if round(cont) > 0:
-                binary = 1
-                pass
-            model[self.notFirstTableInAllSlicesBinary[mem]][self.iLSl(mem,log,sl)] = binary
-            # If not first table in all slices and has rows, then touch >= 1
-            # If first table in all slices and has rows, 0 + 1 - 1 .. 0
-            # If not first table but has no rows .. 1 + 0 - 1 .. 0
-            # If first table . no rows .. 0 + 0 -
-            pass
-
-        pass
 
     def fillModel(self, startRowDict, numberOfRowsDict, model):
         for mem in self.switch.memoryTypes:
@@ -577,9 +466,6 @@ class FlexpipeIlpCompiler:
         self.setupVariables(program, switch, preprocess)
         self.setupStartAndEndStagesVariables()
 
-        if self.touches:
-            self.setupTouchesTableBeforeVariables()
-            pass
         self.setupConstraints(model=self.variables)
 
         self.setupStartingDict()
@@ -879,9 +765,6 @@ class FlexpipeIlpCompiler:
         # GET VARIABLES THAT DEPEND ON startRow, numberOfRows, ordToLog
        
         self.setupConstraintsForProductsAndBinarys(model=model)
-        if self.touches:
-            self.setupTouchesTableBeforeConstraints(model=model)
-            pass
 
         self.getStartingAndEndingStages(model=model) # tested
         
@@ -1162,64 +1045,6 @@ class FlexpipeIlpCompiler:
         self.dictNumVariables['log*st'] += 4 # maximumStage
         pass
 
-
-    def setupTouchesTableBeforeVariables(self):
-
-        # firstRowOfTableBefore .. ordToLog(sl,log,ord) * firstRowOfOrd(sl, ord-1) for ord in 1 ..
-        # numberOfRowsOfTablesBefore .. ordToLog(sl,log,ord) * numberOfRowsOfOrd(sl, ord-1) for ord in 1 ..
-        # firstRowOfTableBeforeTimesNumberOfRowsOfTablesBeforeBinary
-
-        self.touchesTableBefore = {}; self.firstRowOfTableBefore={}; self.numberOfRowsOfTableBefore={};
-        self.numberOfRowsOfTableBeforeBinary={}; self.firstRowOfTableMinusLastRowOfTableBeforeBinary = {}
-        self.firstRowOfTableMinusLastRowOfTableBeforeBinary = {};
-        self.firstRowOfTableBeforeIfOrd = {}; self.numberOfRowsOfTableBeforeIfOrd = {};
-        self.notFirstTableInAllSlicesBinary = {}
-        for mem in self.switch.memoryTypes:
-            maxIndex = sum(self.slMax[mem]) * self.logMax
-            vname = 'firstRowOfTableBefore'
-            ub = self.ub[mem]['firstRowOfOrd']
-            self.ub[mem][vname] = ub
-            self.firstRowOfTableBefore[mem] = self.newVar((maxIndex), vtype=int, lb=0, ub = ub, name=vname+mem)
-
-            vname = 'numberOfRowsOfTableBefore'
-            self.ub[mem][vname] = ub
-            self.numberOfRowsOfTableBefore[mem] = self.newVar((maxIndex), vtype=int, lb=0, ub=ub, name=vname+mem)
-
-            vname = 'numberOfRowsOfTableBeforeBinary'
-            self.ub[mem][vname] = 1
-            self.numberOfRowsOfTableBeforeBinary[mem] = self.newVar((maxIndex), vtype=int, lb=0, ub=1, name=vname+mem)
-
-            vname = 'firstRowOfTableMinusLastRowOfTableBeforeBinary'
-            self.ub[mem][vname] = 1
-            self.firstRowOfTableMinusLastRowOfTableBeforeBinary[mem] =\
-                self.newVar((maxIndex), vtype=int, lb=0, ub=1, name=vname+mem)
-
-
-            vname = 'firstRowOfTableBeforeIfOrd' # ordToLog[log,ord,sl] * firstRowOfOrd[ord-1,sl]
-            maxIndex = sum(self.slMax[mem]) * self.logMax * self.orderMax
-            ub = self.ub[mem]['firstRowOfOrd']
-            self.ub[mem][vname] = ub
-            self.firstRowOfTableBeforeIfOrd[mem] = self.newVar((maxIndex), vtype=int, lb=0, ub = ub, name=vname+mem)
-
-            vname = 'numberOfRowsOfTableBeforeIfOrd' # ordToLog[log,ord,sl] * numberOfRowsOfOrd[ord-1,sl]
-            maxIndex = sum(self.slMax[mem]) * self.logMax * self.orderMax
-            ub = self.ub[mem]['firstRowOfOrd']
-            self.ub[mem][vname] = ub
-            self.numberOfRowsOfTableBeforeIfOrd[mem] = self.newVar((maxIndex), vtype=int, lb=0, ub = ub, name=vname+mem)
-
-            vname = 'notFirstTableInAllSlicesBinary'
-            maxIndex = sum(self.slMax[mem]) * self.logMax
-            self.notFirstTableInAllSlicesBinary[mem] = \
-                self.newVar((maxIndex), vtype = int, lb=0, ub = 1, name= vname+mem)
-
-            vname = 'touchesTableBefore'
-            maxIndex =  sum(self.slMax[mem]) * self.logMax
-            self.touchesTableBefore[mem] = self.newVar((maxIndex), vtype=int, lb=0, ub=1, name=vname+mem)
-            pass
-        pass
-
-
-
     def getXXOfLog(self, mem, log, sl, model=None):
         # 3 constraints
         """
@@ -1268,12 +1093,6 @@ class FlexpipeIlpCompiler:
         self.newConstr(binary * ub >= cont)
         pass
 
-    def setupTouchesTableBeforeConstraints(self, model=None):
-        self.tableBeforeConstraint(model)
-        self.touchesTableBeforePerSliceConstraint(model)
-        self.touchesAtleastOneTableBeforeConstraint(model)
-        pass
-    
     def tableBeforeConstraint(self,model=None):
         memXLogXSl = [(mem,log,sl)\
                           for mem in self.switch.memoryTypes\

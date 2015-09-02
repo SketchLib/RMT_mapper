@@ -1,18 +1,7 @@
-import traceback
-import sys
-import math
-import argparse
-import os
-import time
 from parse import *
-
+from common import *
 
 cwd = os.getcwd() + "/"
-
-# DEFAULT
-default_compiler_file = 'mapper/config/comp00.txt'
-default_switch_file = 'mapper/config/switch00.txt'
-default_preprocessor_file = 'mapper/config/prep00.txt'
 
 default_log_directory = cwd
 default_log_level = "INFO"
@@ -62,6 +51,10 @@ parser.add_argument('--compiler_mipstartFile', required=False, type=str, help="s
 parser.add_argument('--compiler_objectiveStr', required=False, type=str, help="objectiveStr for ILP compiler")
 parser.add_argument('--compiler_relativeGap', required=False, type=float, help="relative gap for ILP compiler")
 parser.add_argument('--compiler_outputFileName', required=False, type=str, help="output file for MIP start etc.")
+
+# EGRESS OPTIONS
+parser.add_argument('-e', '--egress_only', required=False, action='store_true',  help="Compile egress only. Default: ingress only.")
+parser.add_argument('-x', '--ingress_and_egress', required=False, action='store_true', help="Compile both ingress and egress.")
 
 args = parser.parse_args()
 print args
@@ -197,7 +190,14 @@ try:
     import hlirToProgram
     h = HLIR(args.program)
     h.build()
-    program = hlirToProgram.getProgram(h, numeric_level)
+
+    pipeline_option = INGRESS_ONLY # default
+    if args.egress_only:
+        pipeline_option = EGRESS_ONLY
+    elif args.ingress_and_egress:
+        pipeline_option = INGRESS_AND_EGRESS
+
+    program = hlirToProgram.getProgram(h, numeric_level, pipeline_option)
 except:
     logging.error("Could not get a valid TDG from P4 program ")
     logging.error(traceback.format_exc())
