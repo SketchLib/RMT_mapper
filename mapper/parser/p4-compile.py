@@ -1,3 +1,4 @@
+import traceback
 import sys
 import math
 import argparse
@@ -71,10 +72,11 @@ def getFile(path):
 
 # GENERATE LOG FILE NAME
 try:
+    p4FileName = os.path.split(args.program)[-1]
 
     jobId= "_".join([("%s" % (module[1])) for module in\
                          [(getFile(args.compiler_file), args.compiler),\
-                              (None, args.program),\
+                              (None, p4FileName),\
                               (getFile(args.switch_file), args.switch)]])
 
 #     jobId= "_".join(["%s-%s" % (module[0], module[1]) for module in\
@@ -193,9 +195,9 @@ try:
     f = open(args.program)
     from p4_hlir.main import HLIR
     import hlirToProgram
-    h = HLIR(sys.argv[1])
+    h = HLIR(args.program)
     h.build()
-    program = hlirToProgram.getProgram(h)
+    program = hlirToProgram.getProgram(h, numeric_level)
 except:
     logging.error("Could not get a valid TDG from P4 program ")
     logging.error(traceback.format_exc())
