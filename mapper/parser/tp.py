@@ -2,7 +2,11 @@
 [get|show]ProgramInfo() returns|displays program info- table names, widths, action widths, match types, num entries
 indexed by table number in a format suitable for initializing a Program from mapper.programs.program
 """
-from common import *
+
+import os
+import subprocess
+import argparse
+import logging
 
 import p4_hlir.hlir.p4 as p4
 import p4_hlir.hlir.dependencies as dependencies
@@ -17,7 +21,7 @@ logger = logging.getLogger(__name__)
 defaultMatch = {'width':32, 'match_type':'exact', 'action_widths':[0], 'num_entries':1024, 'num_action_words':1, 'fixed_action_data_per_stage':False}
 defaultCondition = {'width':1, 'match_type':'gw', 'action_widths':[0], 'num_entries':12, 'num_action_words':1, 'fixed_action_data_per_stage':False}
 
-def get_tables(graphs,compile_option=INGRESS_ONLY): # {
+def get_tables(graphs): # {
     defaultStr = ""
     def round_to(width, div):
         numDivs = width/div
@@ -105,14 +109,8 @@ def get_tables(graphs,compile_option=INGRESS_ONLY): # {
                                   for index in range(1,len(hlir.p4_conditional_nodes)+1)]
     logger.info("%d tables in p4 conditional nodes: %s" % (len(p4ConditionalTables), p4ConditionalTables))
 
-    tablesInAllGraphs = [] # misnomer; only the graphs that we are going to compile.
+    tablesInAllGraphs = []
     for graphName in graphs:
-        if graphName == "egress" and compile_option==INGRESS_ONLY:
-            logger.info("Skipping egress.")
-            continue
-        if graphName == "ingress" and compile_option==EGRESS_ONLY:
-            logger.info("Skipping ingress.")
-            continue
         tablesInAllGraphs += tablesInGraph[graphName]
         pass
     
@@ -218,28 +216,18 @@ def get_lists(tables):
         lists['ingress'], lists['select_size'], lists['next_table_count'], lists['action_count']
     
 
-def get_dependencies(graphs, compile_option=INGRESS_ONLY):
+def get_dependencies(graphs):
     deps = {}
     types = table_dependency.Dependency._types
-    for type_ in types.keys():
-        deps[types[type_]] = []
-        pass
 
     for graphName in graphs:
-        if graphName == "egress" and compile_option==INGRESS_ONLY:
-            logger.info("Skipping egress.")
-            continue
-        if graphName == "ingress" and compile_option==EGRESS_ONLY:
-            logger.info("Skipping ingress.")
-            continue
         logger.info("DEPENDENCIES FROM %s TABLE GRAPH", graphName)
         for type_ in types.keys():
-            deps_from_graph = [(table.name, dependency.to.name)\
+            deps[types[type_]] = [(table.name, dependency.to.name)\
                                       for table in graphs[graphName]._nodes.values()\
                                       for dependency in table.next_tables.values()\
                                       if dependency.type_ == type_]
-            logger.info("%s: %s" % (types[type_], deps_from_graph))
-            deps[types[type_]] += deps_from_graph
+            logger.info("%s: %s" % (types[type_], deps[types[type_]]))
             pass
 
 
@@ -261,24 +249,24 @@ def unique_list(l, idfun=None):
     return result
 
     
-def getProgramInfo(input_hlir, loglevel, compile_option=INGRESS_ONLY):
+def getProgramInfo(input_hlir, loglevel):
     global hlir
     hlir = input_hlir
     logger.setLevel(loglevel)
 
     graphs = {}
     graphs["ingress"] = table_dependency.rmt_build_table_graph_ingress(hlir)
-    graphs["egress"] = table_dependency.rmt_build_table_graph_egress(hlir)
+    #graphs["egress"] = table_dependency.rmt_build_table_graph_egress(hlir)
     
     for graphName in graphs:
         graphs[graphName].transitive_reduction()
         pass
 
-    deps = get_dependencies(graphs, compile_option)
+    deps = get_dependencies(graphs)
     # deps is {string: [(string, string)]} -- mapping dependency type to list
     # of (from,to) pairs of table names
 
-    tables = get_tables(graphs, compile_option)
+    tables = get_tables(graphs)
     # tables is [{string: any}] -- one map for each table
     table_names = [t['name'] for t in tables]
     logger.info("tables-names: %s" % [(i, t['name']) for (i,t) in enumerate(tables)])

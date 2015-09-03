@@ -131,7 +131,7 @@ class RmtGreedyCompiler:
     def getPerPf(self, mem, tableIndex):
         shape = self.blocksPerPf[mem][tableIndex].shape
         perPf = {}
-        if len(shape) == 2 and shape[0] == 1 and shape[1] == 1: # 1-D matrix
+        if shape[0] == 1 and shape[1] == 1:
             perPf['blocks'] = [self.blocksPerPf[mem][tableIndex]]
             perPf['words'] = [self.wordsPerPf[mem][tableIndex]]
             pass

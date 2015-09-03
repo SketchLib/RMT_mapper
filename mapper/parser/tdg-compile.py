@@ -9,6 +9,12 @@ from parse import *
 
 cwd = os.getcwd() + "/"
 
+# DEFAULT
+default_compiler_file = 'mapper/config/comp00.txt'
+default_program_file = 'mapper/config/prog00.txt'
+default_switch_file = 'mapper/config/switch00.txt'
+default_preprocessor_file = 'mapper/config/prep00.txt'
+
 default_log_directory = cwd
 default_log_level = "INFO"
 

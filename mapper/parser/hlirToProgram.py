@@ -1,9 +1,8 @@
 import tp
-from common import *
-from programs.program import Program # mapper
+from mapper.programs.program import Program
 
-def getProgram(input_hlir, loglevel, compile_option=INGRESS_ONLY):
-    pi = tp.getProgramInfo(input_hlir, loglevel, compile_option)
+def getProgram(input_hlir, loglevel):
+    pi = tp.getProgramInfo(input_hlir, loglevel)
     program = Program(logicalTables=pi["num_entries"],\
 			logicalTableWidths=pi["widths"],\
 			logicalMatchDependencyList=pi["matchDependencies"],\
