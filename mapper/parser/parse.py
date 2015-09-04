@@ -1,7 +1,7 @@
-import logging
+from common import *
 
 def getRmtSwitch(d):
-    from mapper.src.rmt.rmt_switch import RmtSwitch
+    from src.rmt.rmt_switch import RmtSwitch
     # try catch key not in dict
     matchType = {'sram':['exact'], 'tcam':['exact', 'lpm', 'ternary']}
     if 'matchType' in d:
@@ -20,27 +20,27 @@ def getRmtSwitch(d):
     return switch
 
 def getProgramL2L3SimpleMtag(d):
-    from mapper.tdg_programs.l2l3_simple_mtag import ProgramL2L3SimpleMtag
+    from tdg_programs.l2l3_simple_mtag import ProgramL2L3SimpleMtag
     program = ProgramL2L3SimpleMtag(numberOfEntriesDict=d['numberOfEntriesDict'])
     return program.program
 
 def getProgramL2L3Simple(d):
-    from mapper.tdg_programs.l2l3_simple import ProgramL2L3Simple
+    from tdg_programs.l2l3_simple import ProgramL2L3Simple
     program = ProgramL2L3Simple(numberOfEntriesDict=d['numberOfEntriesDict'])
     return program.program
 
 def getProgramL2L3Complex(d):
-    from mapper.tdg_programs.l2l3_complex import ProgramL2L3Complex
+    from tdg_programs.l2l3_complex import ProgramL2L3Complex
     program = ProgramL2L3Complex(numberOfEntriesDict=d['numberOfEntriesDict'])
     return program.program
 
 def getProgramL3Dc(d):
-    from mapper.tdg_programs.l3_dc import ProgramL3Dc
+    from tdg_programs.l3_dc import ProgramL3Dc
     program = ProgramL3Dc(numberOfEntriesDict=d['numberOfEntriesDict'])
     return program.program
 
 def getRmtFflCompiler(d):
-    from mapper.src.rmt.rmt_ffl_compiler import RmtFflCompiler
+    from src.rmt.rmt_ffl_compiler import RmtFflCompiler
     numSramBlocksReserved = 0
     if 'numSramBlocksReserved' in d:
         numSramBlocksReserved = d['numSramBlocksReserved']
@@ -49,7 +49,7 @@ def getRmtFflCompiler(d):
     return compiler
 
 def getRmtFflsCompiler(d):
-    from mapper.src.rmt.rmt_ffls_compiler import RmtFflsCompiler
+    from src.rmt.rmt_ffls_compiler import RmtFflsCompiler
     numSramBlocksReserved = 0
     if 'numSramBlocksReserved' in d:
         numSramBlocksReserved = d['numSramBlocksReserved']
@@ -58,7 +58,7 @@ def getRmtFflsCompiler(d):
     return compiler
 
 def getRmtFfdCompiler(d):
-    from mapper.src.rmt.rmt_ffd_compiler import RmtFfdCompiler
+    from src.rmt.rmt_ffd_compiler import RmtFfdCompiler
     numSramBlocksReserved = 0
     if 'numSramBlocksReserved' in d:
         numSramBlocksReserved = d['numSramBlocksReserved']
@@ -67,7 +67,7 @@ def getRmtFfdCompiler(d):
     return compiler
 
 def getRmtIlpCompiler(d):
-    from mapper.src.rmt.orig_rmt_compiler import RmtIlpCompiler
+    from src.rmt.orig_rmt_compiler import RmtIlpCompiler
     for k in ['timeLimit','treeLimit','emphasis','variableSelect',\
                   'workMem', 'nodeFileInd', 'workDir', 'ignoreConstraint',\
                    'relativeGap', 'epagap', 'solnpoolintensity',\
@@ -96,7 +96,7 @@ def getRmtIlpCompiler(d):
     return compiler
 
 def getRmtLpCompiler(d):
-    from mapper.src.rmt.rmt_lp_compiler import RmtLpCompiler
+    from src.rmt.rmt_lp_compiler import RmtLpCompiler
     if 'greedyVersion' not in d:
         d['greedyVersion'] = ""
         pass
@@ -105,7 +105,7 @@ def getRmtLpCompiler(d):
     return compiler
 
 def getRmtLpOnlyCompiler(d):
-    from mapper.src.rmt.rmt_lp_only_compiler import RmtLpOnlyCompiler
+    from src.rmt.rmt_lp_only_compiler import RmtLpOnlyCompiler
     if 'greedyVersion' not in d:
         d['greedyVersion'] = ""
         pass
@@ -115,33 +115,33 @@ def getRmtLpOnlyCompiler(d):
 
 
 def getRmtPreprocess(d):
-    from mapper.src.rmt.rmt_preprocess import RmtPreprocess
+    from src.rmt.rmt_preprocess import RmtPreprocess
     preprocess = RmtPreprocess()
     return preprocess
 
 def getFlexpipeSwitch(d):
-    from mapper.src.flexpipe.flexpipe_switch import FlexpipeSwitch
+    from src.flexpipe.flexpipe_switch import FlexpipeSwitch
     # try catch key not in dict
     switch = FlexpipeSwitch(numSlices = d['numSlices'], depth = d['depth'], width = d['width'], order = d['order'], maxTablesPerSlice = d['maxTablesPerSlice'])
     return switch
 
 def getProgramDdSmall(d):
-    from mapper.tdg_programs.dd_small import ProgramDdSmall
+    from tdg_programs.dd_small import ProgramDdSmall
     program = ProgramDdSmall(numberOfEntriesDict=d['numberOfEntriesDict'])
     return program.program
 
 def getProgramDdMtag(d):
-    from mapper.tdg_programs.dd_mtag import ProgramDdMtag
+    from tdg_programs.dd_mtag import ProgramDdMtag
     program = ProgramDdMtag(numberOfEntriesDict=d['numberOfEntriesDict'])
     return program.program
 
 def getProgramDdMtagSmall(d):
-    from mapper.tdg_programs.dd_mtag_small import ProgramDdMtagSmall
+    from tdg_programs.dd_mtag_small import ProgramDdMtagSmall
     program = ProgramDdMtagSmall(numberOfEntriesDict=d['numberOfEntriesDict'])
     return program.program
 
 def getRealOkayFlexpipeIlpCompiler(d):
-    from mapper.src.flexpipe.realOkay_ilp import RealOkayFlexpipeIlpCompiler
+    from src.flexpipe.realOkay_ilp import RealOkayFlexpipeIlpCompiler
     for k in ['timeLimit','treeLimit','emphasis','variableSelect',\
                   'workMem', 'nodeFileInd', 'workDir', 'outputFileName', 'writeLevel','relativeGap', 'epagap', 'solnpoolintensity','populateLimit', 'granMem',\
                   'granLb']:
@@ -172,7 +172,7 @@ def getRealOkayFlexpipeIlpCompiler(d):
     return compiler
 
 def getFlexpipeIlpCompiler(d):
-    from mapper.src.flexpipe.orig_flexpipe_compiler import FlexpipeIlpCompiler
+    from src.flexpipe.orig_flexpipe_compiler import FlexpipeIlpCompiler
     for k in ['timeLimit','treeLimit','emphasis','variableSelect',\
                   'workMem', 'nodeFileInd', 'workDir', 'outputFileName', 'writeLevel','relativeGap', 'epagap', 'solnpoolintensity','populateLimit', 'granMem']:
         if k not in d:
@@ -201,12 +201,12 @@ def getFlexpipeIlpCompiler(d):
     return compiler
 
 def getFlexpipeLptCompiler(d):
-    from mapper.src.flexpipe.flexpipe_lpt_compiler import FlexpipeLptCompiler
+    from src.flexpipe.flexpipe_lpt_compiler import FlexpipeLptCompiler
     compiler = FlexpipeLptCompiler()
     return compiler
 
 def getFlexpipePreprocess(d):
-    from mapper.src.flexpipe.flexpipe_preprocess import FlexpipePreprocess
+    from src.flexpipe.flexpipe_preprocess import FlexpipePreprocess
     preprocess = FlexpipePreprocess()
     return preprocess
 
@@ -329,11 +329,10 @@ def getModules(query):
     return query
 
 def makeQuery(compKey, switchKey, prepKey, progKey=None):
-    query = {'compiler': {'key':'001', 'configFile':'mapper/config/comp00.txt', 'module':None},\
-                  'switch': {'key':'001', 'configFile':'mapper/config/switch00.txt', 'module':None},\
-                  'preprocess': {'key':'001', 'configFile':'mapper/config/prep00.txt', 'module': None},\
-                 'program': {'key':'001', 'configFile':'mapper/config/prog00.txt', 'module': None}}
-
+    query = {'compiler': {'key':'001', 'configFile':default_compiler_file, 'module':None},\
+             'switch': {'key':'001', 'configFile':default_switch_file, 'module':None},\
+             'preprocess': {'key':'001', 'configFile':default_preprocessor_file, 'module': None},\
+             'program': {'key':'001', 'configFile':default_program_file, 'module': None}}
 
     query['compiler']['key'] = compKey
     query['switch']['key'] = switchKey
