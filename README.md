@@ -19,10 +19,6 @@ sudo apt-get install python-matplotlib
 sudo apt-get install python-pygraph
 
 
-Make symbolic link to mapper directory in mapper/parser, call it mapper
-
- e.g., ln -s path_to_mapper_directory mapper
-
 # Compiling Programs #
 
 ## To compile a P4 program ##

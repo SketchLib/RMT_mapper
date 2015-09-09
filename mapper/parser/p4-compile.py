@@ -19,24 +19,11 @@
 #
 #
 
-
-
-import traceback
-import sys
-import math
-import argparse
-import os
-import time
 from parse import *
-
 
 cwd = os.getcwd() + "/"
 
 # DEFAULT
-default_compiler_file = 'mapper/config/comp00.txt'
-default_switch_file = 'mapper/config/switch00.txt'
-default_preprocessor_file = 'mapper/config/prep00.txt'
-
 default_log_directory = cwd
 default_log_level = "INFO"
 
@@ -63,6 +50,10 @@ parser.add_argument('-s', '--switch', required=True, type=str, help='switch name
                         + str(possible_switches[:3]))
 parser.add_argument('-r', '--preprocessor', required=True, type=str, help='preprocessor name (examples: '\
                         + str(possible_preprocessors[:3]))
+
+# COMPILE OPTIONS (for egress)
+parser.add_argument('-e', '--egress_only', required=False, action='store_true',  help="Compile egress only. Default: ingress only.")
+parser.add_argument('-x', '--ingress_and_egress', required=False, action='store_true', help="Compile both ingress and egress.")
                         
 # CONFIG FILES
 parser.add_argument('-C', '--compiler_file', type=str,\
@@ -220,7 +211,14 @@ try:
     import hlirToProgram
     h = HLIR(args.program)
     h.build()
-    program = hlirToProgram.getProgram(h, numeric_level)
+
+    pipeline_option = INGRESS_ONLY # default
+    if args.egress_only:
+        pipeline_option = EGRESS_ONLY
+    elif args.ingress_and_egress:
+        pipeline_option = INGRESS_AND_EGRESS
+    
+    program = hlirToProgram.getProgram(h, numeric_level, pipeline_option)
 except:
     logging.error("Could not get a valid TDG from P4 program ")
     logging.error(traceback.format_exc())
