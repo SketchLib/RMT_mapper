@@ -23,15 +23,14 @@
 
 import numpy as np
 import logging
-"""
-RMT switch.
-"""
 
 
 class RmtSwitch:
+    """
+    RMT switch. Describes resources to be configured in the RMT switch.
+    """
 
-
-    # order .. stage number to topo-sort number
+    
     def __init__(self,  numSlices = {'sram':106, 'tcam':16},\
                      depth = {'sram':1000, 'tcam':2000},\
                      width = {'sram':80, 'tcam':40},\
@@ -50,19 +49,20 @@ class RmtSwitch:
                                  'wattsPerTcamBit':5.8520785245e-07},\
                      unpackableMemTypes=['tcam'],\
                      toposortOrder = []):
+        """ initialize with resources available in each stage"""
         self.logger = logging.getLogger(__name__)
-        switchInfoStr = "RMT SWITCH"
+        self.logger.info("RMT SWITCH")
 
         self.memoryTypes = sorted([k for k in depth])
-        switchInfoStr += ("\nMemory types: %s" % self.memoryTypes)
+        self.logger.info("Memory types: %s" % self.memoryTypes)
 
         self.matchType = matchType
-        switchInfoStr += ("\nMatch type: %s" % self.matchType)
+        self.logger.info("Match type: %s" % self.matchType)
 
         for mem in self.memoryTypes:
             if type(numSlices) == list and\
                     len(numSlices[mem]) != numStages:
-                switchInfoStr += ("\nInvalid blocks/ slices per stage")
+                self.logger.info("Invalid blocks/ slices per stage")
                 return
             pass
         self.numSlices = {}
@@ -73,7 +73,7 @@ class RmtSwitch:
                 self.numSlices[mem] = numSlices[mem]
                 pass
             pass
-        switchInfoStr += ("\nNumber of blocks: %s" %\
+        self.logger.info("Number of blocks: %s" %\
                          str([(mem, self.numSlices[mem][0]) for mem in\
                                   self.memoryTypes]))
 
@@ -84,37 +84,39 @@ class RmtSwitch:
 
         self.toposortOrderStages = self.toposortOrderStages
         
-        switchInfoStr += ("\nTopo. sort for stages: %s " % self.toposortOrderStages)
+        #self.logger.info("Topo. sort for stages: %s " % self.toposortOrderStages)
+        # can pack multiple TCAMs together to store only up to one match entry per row
+        # not more, unlike SRAMs. So TCAM is "unpackable"
         self.unpackableMemTypes = unpackableMemTypes
         self.numStages = numStages
-        switchInfoStr += ("\nNumber of stages: %s " % self.numStages)
+        self.logger.info("Number of stages: %s " % self.numStages)
 
         self.depth = depth
         self.width = width
-        switchInfoStr += ("\nDepth and width of memory: %s "\
+        self.logger.info("Depth and width of memory: %s "\
                          % ["%dx%db %s" % (depth[mem], width[mem], mem)\
                                 for mem in self.memoryTypes])
 
         self.inputCrossbarNumSubunits = inputCrossbarNumSubunits
         self.inputCrossbarWidthSubunit = inputCrossbarWidthSubunit
-        switchInfoStr += ("\nInput crossbar: %s "\
+        self.logger.info("Input crossbar: %s "\
                          % ["%d %db %s" % (inputCrossbarNumSubunits[mem],\
                                                inputCrossbarWidthSubunit[mem],\
                                                mem)\
                                 for mem in self.memoryTypes])
         self.actionCrossbarNumBits = actionCrossbarNumBits
-        switchInfoStr += ("\nAction crossbar has %d bits" % actionCrossbarNumBits)
+        self.logger.info("Action crossbar has %d bits" % actionCrossbarNumBits)
 
         self.resolutionLogicNumMatchTables =\
             matchTablesPerStage['sram']
-        switchInfoStr += ("\nMatch Tables per stage: %s" %\
+        self.logger.info("Match Tables per stage: %s" %\
                          ["%d %s" % (matchTablesPerStage[mem], mem) for\
                               mem in self.memoryTypes])
 
         self.matchDelay = delays['match']
         self.actionDelay = delays['action']
         self.successorDelay = delays['successor']
-        switchInfoStr += ("\nPipeline delays: %s" % delays)
+        self.logger.info("Pipeline delays: %s" % delays)
 
         self.power = power
         power['wattsPerTcam'] =\
@@ -124,8 +126,12 @@ class RmtSwitch:
             power['wattsPerSramBit'] * self.width['sram'] *\
             self.depth['sram']
         
-        switchInfoStr += ("\nPower numbers: %s" % power)
+        self.logger.info("Power numbers: %s" % power)
 
+        # messy way to indicate type action data goes in SRAM
+        # type SRAM match data (confusingly called sram) goes in SRAM
+        # type TCAM match data (confusingly called tcam) goes in TCAM
+        # and similiary for other memory types like SRAM, TCAM
         self.typesIn = {}
         self.typesIn['sram'] = ['sram', 'action']
         for mem in self.memoryTypes:
@@ -133,7 +139,7 @@ class RmtSwitch:
                 self.typesIn[mem] = [mem]
                 pass
             pass
-        switchInfoStr += "\nTypes in: %s" % self.typesIn
+        self.logger.info("Types in: %s" % self.typesIn)
         
         allTypes = {}
         self.inMem = {}
@@ -146,8 +152,7 @@ class RmtSwitch:
                 pass
             pass
         self.allTypes = sorted(allTypes.keys())
-        switchInfoStr += "\nAll types: %s" % self.allTypes
+        self.logger.info("All types: %s" % self.allTypes)
         
-        self.logger.info(switchInfoStr)
         pass
 
