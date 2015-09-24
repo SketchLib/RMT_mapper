@@ -29,10 +29,6 @@ import numpy as np
 from datetime import datetime
 import time
 import logging
-"""
-Assign number of blocks for each layout, compute number
-of logical words from blocks.
-"""
 
 class RmtIlpCompiler:
     def __init__(self, relativeGap, greedyVersion,objectiveStr='maximumStage',\
@@ -41,11 +37,21 @@ class RmtIlpCompiler:
                      workMem=None,\
                      nodeFileInd=None,\
                      workDir=None):
+        """ Initialize compiler with CPLEX parameters
+        @relativeGap is a fraction f so that CPLEX will stop at a solution that
+         is within f of the optimal, corresponds to CPX_PARAM_EPGAP in CPLEX
+         @greedyVersion is one of 'ffl'/ 'ffd' etc.
+         @objectiveStr is one of pipelineLatency, maximumStage, powerForRamsAndTcams
+         other parameters are optional .. (see pycpx for more info)
+        """
         self.logger = logging.getLogger(__name__)
 
         self.objectiveStr=objectiveStr
         self.relativeGap = relativeGap
         self.greedyVersion = greedyVersion
+
+        # Different parameters to speed up CPLEX
+        # see CPLEX documentation
         self.emphasis = emphasis
         self.variableSelect = variableSelect
         self.timeLimit = timeLimit
@@ -54,7 +60,12 @@ class RmtIlpCompiler:
         self.nodeFileInd = nodeFileInd
         self.workDir = workDir
 
+        # one constraint to ignore (used in limiting constraints experiments)
+        # one of capacity, useMemory, assignment, dependency, action,
+        # inputCrossbar, resolutionLogic, actionCrossbar, pipelineLatency
         self.ignoreConstraint = ignoreConstraint
+
+        # For logging only
         self.dictNumVariables = \
             {'log': 0, 'st': 0, 'log*st': 0,
              'allMem*pf*log*st':0,
@@ -71,11 +82,13 @@ class RmtIlpCompiler:
              'succDep':0, 'matchDep':0, 'actionDep':0
             }
         self.numConstraints = 0
+
         self.dimensionSizes = {}
         self.logger = self.logger.getLogger(__name__)
         pass
 
     def setDimensionSizes(self):
+        # for logging only
         item_count_allmempflogst = 0
         for thing in self.switch.allTypes:
             item_count_allmempflogst += self.pfMax[thing]*self.logMax*self.stMax
@@ -129,16 +142,15 @@ class RmtIlpCompiler:
         pass
 
     def capacityConstraint(self):
-        """
-        TODO(lav): Add action blocks, stat blocks for log. in this stage,
-        TCAM overhead blocks.
-        """
+        """ Don't use more memories than available in each stage for action, match"""
+        # tcam match entries ('tcam') is the only thing that uses TCAM
         for mem in self.switch.memoryTypes:
             self.m.constrain(self.block[mem].T * np.ones(self.logMax)\
                                  <= self.switch.numSlices[mem])
             pass
         self.dictNumConstraints['mem*st'] += 1
 
+        # action, sram match entries are two 'things' that use SRAM
         mem = 'sram'
         self.m.constrain(sum([self.block[thing].T for thing in self.switch.typesIn[mem]])
                              * np.ones(self.logMax)\
@@ -148,6 +160,9 @@ class RmtIlpCompiler:
 
 
     def wordLayoutConstraint(self):
+        """ Relating number of packing units to number of blocks used/
+        words per row fit
+        """
         for mem in self.switch.allTypes:
             for log in range(self.logMax):
                 for st in range(self.stMax):
@@ -165,8 +180,11 @@ class RmtIlpCompiler:
         pass
     
     def useMemoryConstraint(self):
+        """ assign blocks of logical table to mem only if it's allowed
+        e.g., a ternary table can't use SRAM blocks. Preprocessor
+        computes what's allowed (self.preprocess.use)"""
+
         upperBound = self.blockMax * self.stMax
-        # assign blocks of logical table to mem only if it's allowed
         for mem in self.switch.memoryTypes:
             for log in range(self.logMax):
                 blocksUsedForLog = (self.block[mem][log,:] *\
@@ -180,6 +198,8 @@ class RmtIlpCompiler:
         pass
     
     def assignmentConstraint(self):
+        """ All match entries must be assigned somewhere in the pipeline.
+        """
         allocatedWords = sum([self.word[mem] for mem in\
                                   self.switch.memoryTypes])\
                                   * np.ones(self.stMax)
@@ -188,6 +208,7 @@ class RmtIlpCompiler:
         pass
 
     def pipelineLatencyVariables(self):
+        """ Variables for start and end time of stages"""
         ub = self.stMax * self.switch.matchDelay
         ubb = self.stMax * self.switch.matchDelay * self.stMax
         self.startTimeOfStage =\
@@ -206,7 +227,7 @@ class RmtIlpCompiler:
         pass
 
     def getStartAllMemTimesStartTimeOfStage(self):
-        # Get startTimeOfStageTimesStartAllMem
+        """ Defining product variable StartAllMem x StartTimeOfStage """
         # upper bound of start time of stage 
         upperBound = self.stMax * self.switch.matchDelay * self.stMax
         
@@ -227,6 +248,8 @@ class RmtIlpCompiler:
         pass
 
     def getEndAllMemTimesStartTimeOfStage(self):
+        """ Defining product variable endAllMem x StartTimeOfStage """
+
         # Get startTimeOfStageTimesStartAllMem
         # upper bound of start time of stage 
         upperBound = self.stMax * self.switch.matchDelay * self.stMax
@@ -725,6 +748,9 @@ class RmtIlpCompiler:
         pass
 
     def resolutionLogicConstraint(self):
+        """ Limits number of match tables per stage. Since table match resolution logic
+        can only handle a finite number
+        """
         numMatchTablesUsed = self.blockAllMemBin.T * np.ones((self.logMax,1))
         numMatchTablesAvailable = self.switch.resolutionLogicNumMatchTables *\
             np.ones((self.stMax,1))
@@ -745,6 +771,10 @@ class RmtIlpCompiler:
         pass
 
     def onePackingUnitForLogInStage(self):
+        """ Restrict logical tables to use same packing unit in a stage
+        instead of combinations of different size packing units in the
+        same stage. Packing units in different stages can be different though.
+        """
         for st in range(self.stMax):
             for log in range(self.logMax):
                 index = log*self.stMax+st
@@ -1015,7 +1045,9 @@ class RmtIlpCompiler:
     
         
     def solve(self, program, switch, preprocess):
-
+        """ Returns a configuration for program in switch, given some preprocessed information,
+        like possible packing units for different logical tables.
+        """
         solveStart = time.time()
         self.program = program
         self.switch = switch
@@ -1373,6 +1405,11 @@ class RmtIlpCompiler:
     
 
     def checkConstraints(self,model):
+        """ Given a complete model with all variables filled in,
+        checks against the inequality constraints that define the ILP
+        and warns if anything's violated. Used to check greedy solutions,
+        and other starting solutions.
+        """
         self.checkPipelineLatencyConstraint(model)
         for mem in self.switch.memoryTypes:
             self.checkInputCrossbarConstraint(model, mem)

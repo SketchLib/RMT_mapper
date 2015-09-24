@@ -230,6 +230,9 @@ class RmtDependencyAnalysis:
         return gr
 
     def showCriticalPath(self, gr = None):
+        """ show critical path- i.e., longest path of dependencies, where weight of
+        dependency edge is 1 if it forces a table into a new stage.
+        """
         if not gr:
             gr = self.flipEdgeSign(self.reverseEdges(self.getDigraph()))
             pass
