@@ -48,6 +48,10 @@ except:
     pass
 
 class RmtConfiguration:
+    """
+    Module to describe and log an RMT switch configuration
+    for a given program
+    """
     def __init__(self, program, switch, preprocess,\
                      layout, version):
         self.logger = logging.getLogger(__name__)
@@ -590,21 +594,23 @@ class RmtConfiguration:
         return earliestStageFromAssign
 
     def display(self, paths = []):
-
-        self.logger.info("Words per table")
+        """ Display configuration, in many different ways- fraction of TCAMs/ SRAMs used, power, pipeline latency
+        start time of stages, tables in each stage, memories used by tables in each stage, dependencies
+        that force tables to start in a particular stage (useful for debugging program manually)
+        """
         self.checkWordsPerTable()
         
-        self.logger.info("Fraction of TCAMs/ SRAMs used")
-        self.displayFractionUsed()
+#         self.logger.info("Fraction of TCAMs/ SRAMs used")
+#         self.displayFractionUsed()
         
         self.logger.info("\n(%s) Power for RAMs and TCAMs " % self.version + str(self.getPowerForRamsAndTcams()))
         self.logger.info("\n(%s) Pipeline Latency " % self.version + str(self.getPipelineLatency()))
 
-        self.logger.info("\n(%s)Start Time of Stages " % self.version) 
-        startTime = self.getStartTimeOfStage()
-        for st in range(self.stMax):
-            self.logger.info("St " + str(st) + ": " + str(startTime[st]))
-            pass
+#         self.logger.info("\n(%s)Start Time of Stages " % self.version) 
+#         startTime = self.getStartTimeOfStage()
+#         for st in range(self.stMax):
+#             self.logger.info("St " + str(st) + ": " + str(startTime[st]))
+#             pass
         
         
         summaryInfo = ""
@@ -642,12 +648,12 @@ class RmtConfiguration:
                 
             pass
         
-        self.logger.info("\n(%s) Tables allocated per stage\n" % self.version + summaryInfo)
-        for st in sorted(summaryPerSt.keys()):
-            if len(summaryPerSt[st]) > 0:
-                self.logger.info("%s: %s" % (stageInfo[st], ",".join(summaryPerSt[st])))
-                pass
-            pass
+#         self.logger.info("\n(%s) Tables allocated per stage (earliest possible stage in brackets)\n" % self.version + summaryInfo)
+#         for st in sorted(summaryPerSt.keys()):
+#             if len(summaryPerSt[st]) > 0:
+#                 self.logger.info("%s: %s" % (stageInfo[st], ",".join(summaryPerSt[st])))
+#                 pass
+#             pass
         
         self.logger.info("\n(%s) Blocks allocated per stage\n" % self.version + layoutInfo)
         for st in sorted(layoutPerSt.keys()):
@@ -661,19 +667,12 @@ class RmtConfiguration:
 
         assignInfo =  self.getPerLogAssignInfo()
 
-        self.logger.info("\n(%s) Table xx can't start before [(st, dependency, prev, prevEndSt),..]" % self.version)
+        self.logger.info("\n(%s) Table xx can't start before stage @st because of @dependency on table @prev which ends in stage @prevEndSt [(st, dependency, prev, prevEndSt),..]" % self.version)
         notBefore = self.getEarliestStageFromAssign(assignInfo)
         for table in self.program.names:
             previousTables = notBefore[table]
             self.logger.info("%s  : %s" % (table, previousTables))
             pass
-
-        """
-        For each table, if it's not in the earliest stage, show
-        longest path to table, with dependency type, for what fields
-        which stages each table is in
-        For each stage, each resource usage
-        """
 
         pass
 
