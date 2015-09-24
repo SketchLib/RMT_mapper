@@ -77,6 +77,9 @@ class Program:
         pass
 
     def showProgramInfo(self):
+        """ Show program table sizes and dependencies """
+
+        self.logger.info("PROGRAM INFO")
 
         table_names = self.names
 
@@ -135,11 +138,14 @@ class Program:
 
         depsByName = {"match": match_dependencies, "action": action_dependencies,\
                           "successor": successor_dependencies}
+
         for name in depsByName:
-            infoStr += "%s dependencies: %s\n" % (name, depsByName[name])
+            depStr = "%s dependencies: %s" % (name, depsByName[name])
+            self.logger.info(depStr)
+            infoStr += depStr
             pass
 
-        logging.info(infoStr)
+        #self.logger.debug(infoStr)
 
         self.logger.info('%30s%4s%8s%5s%20s' % ('tablename',  'T', '#M-E', 'M-W', 'A-W'))
     
