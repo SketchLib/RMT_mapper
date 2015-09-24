@@ -273,9 +273,9 @@ for k in configs.keys():
                 index += 1
                 pass            
             pass
-
-        logging.info("Setup")
-        config.displayInitialConditions()
+        
+        #logging.info("Setup")
+        #config.displayInitialConditions()
     except:
         logging.error("ERROR!!! Error outputting compiler results")
         logging.error(traceback.format_exc())
