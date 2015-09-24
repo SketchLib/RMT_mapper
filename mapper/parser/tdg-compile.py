@@ -138,6 +138,8 @@ try:
         raise ValueError('Invalid log level: %s' % loglevel)
     print "Logging level is %d" % numeric_level
     logging.basicConfig(level=numeric_level, filename=logFile, filemode='w')
+
+    logging.info("This log has several sections separated by ~~: Switch Info, JobId, Program Info, Compiler Log, Final switch configurations")
 except:
     print "Could not setup logging "
     traceback.print_exc()
@@ -146,6 +148,8 @@ except:
     pass
 
 try:
+    logging.info("~~")
+    logging.info("Switch Info")
     query = makeQuery(args.compiler, args.switch, args.preprocessor, args.program)
 
     query['compiler']['configFile'] = args.compiler_file
@@ -160,8 +164,8 @@ except:
     exit()
     pass    
 
-
-logging.info(jobId)
+logging.info("~~")
+logging.info("JobId: " + jobId)
 
 try:
     # Gives you a compiler, switch, preprocess and program
@@ -201,6 +205,7 @@ program = query['program']['module']
 
 # DISPLAY PROGRAM INFO
 try:
+    logging.info("~~")
     logging.info("Program Info")
     program.showProgramInfo()
 except:
@@ -223,7 +228,9 @@ except:
 
 # COMPILE
 try:
-    logging.info("Compiling...")
+    logging.info("")
+    logging.info("~~")
+    logging.info("Compiler Log")
     start = time.time()
     configs = compiler.solve(program=program, switch=switch, preprocess=preprocess)
     end = time.time()
@@ -236,8 +243,11 @@ except:
     exit()
     pass
 
+logging.info("")
+logging.info("~~")
 logging.info("Final switch configurations")
 for k in configs.keys():
+    logging.info("~~")
     logging.info("\nDisplaying config for %s" % k)
     config = configs[k]
 

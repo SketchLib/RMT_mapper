@@ -317,7 +317,7 @@ def getModules(query):
             pass
         
         if found and query[q]['module'] is not None:
-            logging.info("got %s: %s " % (q, sd['type']))
+            logging.debug("got %s: %s " % (q, sd['type']))
             pass
         else:
             logging.warn("query[%s][module] is None " % q)
@@ -325,7 +325,7 @@ def getModules(query):
         f.close()
         pass
 
-    logging.info(query)
+    logging.debug(query)
     return query
 
 def makeQuery(compKey, switchKey, prepKey, progKey=None):
