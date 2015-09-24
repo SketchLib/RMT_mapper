@@ -46,6 +46,10 @@ class RmtFflCompiler(RmtGreedyCompiler):
         pass
 
     def getOrderedTables(self):
+        """ Return tables in order of level- number of edges in the longest dependency
+        path to the end of the program, where an edge/ dependency has weight 1 if it forces
+        the second table to a new stage"""
+        
         dependencyAnalysis = RmtDependencyAnalysis(self.program)
         progInfo = dependencyAnalysis.getPerLogProgramInfo()
         tables = progInfo.keys()

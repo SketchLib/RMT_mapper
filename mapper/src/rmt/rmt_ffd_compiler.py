@@ -65,6 +65,10 @@ class RmtFfdCompiler(RmtGreedyCompiler):
         pass
 
     def getOrderedTables(self):
+        """ Return tables in order of limiting resource- if a table needs 2 out 8 available input xbar units
+        and 512 of say 1024 available bits of the action data xbar (in every stage), then action data xbar
+        is the limiting resources, since it need 50% of the available resource per stage
+        (vs 25% for input xbar). """
         tables = self.gr.nodes()        
         limitingResource = [(t, self.getLimitingResourceUse(t)) for t in tables]
         limitingResource = sorted(limitingResource, key= lambda pair: pair[1], reverse=True)
