@@ -268,8 +268,12 @@ def getProgramInfo(input_hlir, loglevel, pipeline_option=INGRESS_ONLY):
     logger.setLevel(loglevel)
 
     graphs = {}
-    graphs["ingress"] = table_dependency.rmt_build_table_graph_ingress(hlir)
-    graphs["egress"] = table_dependency.rmt_build_table_graph_egress(hlir)
+    if (hlir.p4_ingress_ptr != None):
+        graphs["ingress"] = table_dependency.rmt_build_table_graph_ingress(hlir)
+        pass
+    if (hlir.p4_egress_ptr != None):
+        graphs["egress"] = table_dependency.rmt_build_table_graph_egress(hlir)
+        pass
     
     for graphName in graphs:
         graphs[graphName].transitive_reduction()
