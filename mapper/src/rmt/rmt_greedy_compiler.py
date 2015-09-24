@@ -38,6 +38,10 @@ from pygraph.classes.digraph import digraph
 #from pygraph.readwrite.dot import write
 
 class RmtGreedyCompiler:
+    """ Greedy heuristic compiler, the specific greedy heuristic
+    is determined by the getOrderedTables function defined in
+    child classes RmtFFlCompiler and RmtFfdCompiler etc.
+    """
     def __init__(self, numSramBlocksReserved=0, version=None):
         self.numSramBlocksReserved = numSramBlocksReserved
         self.version = version
@@ -45,6 +49,7 @@ class RmtGreedyCompiler:
         pass
 
     def getIndex(self, table, names):
+        """ Returns index of table in names"""
         i = 0
         for name in names:
             if table == name:
@@ -55,6 +60,11 @@ class RmtGreedyCompiler:
         return len(names)
 
     def getBestFitForWords(self, tableIndex, mem, lastBlock, numWordsLeft):
+        """ Given the number of match entries left, find minimum number of
+        blocks needed to fit all of them
+        Based solely on memory resources needed for match and action data,
+        not other resources like crossbar units etc.
+        """
         perPf = {'match': self.getPerPf(mem=mem, tableIndex=tableIndex),\
                      'action': self.getPerPf(mem='action', tableIndex=tableIndex)}
 
@@ -152,6 +162,8 @@ class RmtGreedyCompiler:
         return returnValue
 
     def getPerPf(self, mem, tableIndex):
+        """ Get packing unit configurations for given table in given memory type.
+        """
         shape = self.blocksPerPf[mem][tableIndex].shape
         perPf = {}
         if shape[0] == 1 and shape[1] == 1:
@@ -165,6 +177,11 @@ class RmtGreedyCompiler:
         return perPf
         
     def getBestFitForBlocks(self, tableIndex, mem, lastBlock, numSramBlocksReserved):
+        """ Given number of blocks available, find a config. (i.e., pick a
+        packing unit) to fit the maximum number of entries possible
+        Based solely on memory resources needed for match and action data,
+        not other resources like crossbar units etc.
+        """
         perPf = {'match': self.getPerPf(mem=mem, tableIndex=tableIndex),\
                      'action': self.getPerPf(mem='action', tableIndex=tableIndex)}
         # Just have one 'packing unit' option for action memory.
@@ -203,7 +220,7 @@ class RmtGreedyCompiler:
             # packing unit can't store a 160b entry, ideally preprocessor
             # shouldn't pass in these options.
             if perPf['match']['words'][pfMatch] <= 0:
-                self.logger.info("getBestFitForBlocks: can't use any match %d-word packing units" % (perPf['match']['words'][pfMatch]))
+                self.logger.debug("getBestFitForBlocks: can't use any match %d-word packing units" % (perPf['match']['words'][pfMatch]))
                 continue
 
             # Upper bound on number of match packing units we could fit in.
@@ -238,7 +255,7 @@ class RmtGreedyCompiler:
                 if numBlocks['Action'] +  numBlocks['Match'] * inSram <=\
                         numBlocksSramLeft - inSram * numSramBlocksReserved and\
                         numBlocks['Match'] <= numBlocksLeft:
-                    self.logger.info("Found a config. that fits using %d-wide packing units: %d match, %d action" %\
+                    self.logger.debug("Found a config. that fits using %d-wide packing units: %d match, %d action" %\
                                      (perPf['match']['blocks'][pfMatch], numBlocks['Match'], numBlocks['Action']))
                     break
 
@@ -272,7 +289,7 @@ class RmtGreedyCompiler:
             returnValue = paramsForPf[best_pf]
 
         else:
-            self.logger.info("Returning empty params.")
+            self.logger.debug("Returning empty params.")
             returnValue = emptyParams
             pass
 
@@ -281,6 +298,9 @@ class RmtGreedyCompiler:
 
     
     def getNextTable(self):
+        """  Get the next table from the heuristic order that hasn't been
+        assigned yet.
+        """
         succWeight = 0
 #        self.logger.debug("Looking for next table")
         for table,dist in self.orderedTables:
@@ -398,6 +418,9 @@ class RmtGreedyCompiler:
         return
 
     def getNumSramBlocksReserved(self):
+        """ Returns number SRAM blocks reserved for the action data of tables
+        that will go in TCAM
+        """
         currentStage = self.currentStage
         table = self.table
 
@@ -434,18 +457,88 @@ class RmtGreedyCompiler:
         if len(tcamTablesLeft) > 0:
             reserveForTables = sorted(tcamTablesLeft, key=lambda t: numActionRamsPerStage[t], reverse=True)
             reserveForTablesStr = ", ".join(["%d for %s" % (numActionRamsPerStage[t], t) for t in reserveForTables])
-            self.logger.info("Should reserve %s" %  reserveForTablesStr)
+            self.logger.debug("Should reserve %s" %  reserveForTablesStr)
             reserve = numActionRamsPerStage[reserveForTables[0]]
             pass
         else:
             reserve = 0
-            self.logger.info("No TCAM tables with action left to be assigned,"+\
+            self.logger.debug("No TCAM tables with action left to be assigned,"+\
                              " reserve 0 SRAMs (table %s, st %d)" % (table, currentStage))
             pass
 
         return reserve
+
+    def logCompilerAttempt(self, compilerAttempt):
+        if 'solved' in compilerAttempt:
+            if (compilerAttempt['solved']):
+                self.logger.info("Compiler attempt successful.")
+                pass
+            else:
+                self.logger.info("Compiler attempt unsuccessful.")
+                if 'tables' in compilerAttempt and len(compilerAttempt['tables']) > 0:
+                    lastTable = compilerAttempt['tables'][-1]
+                    self.logger.info("Failed to assign last table " + lastTable)
+                    pass
+                pass
+            
+            if ('tables' in compilerAttempt and len(compilerAttempt['tables']) > 0):
+                self.logger.info("Attempted to assign the following tables in order: " + str(compilerAttempt['tables']))
+
+                for table in compilerAttempt['tables']:
+                    if table in compilerAttempt['tableInfo']:
+                        tableInfo = compilerAttempt['tableInfo'][table]
+                        tableInfoStr = "Table %s " % (table)
+                        constraintViolatedStr = ""
+                        if len(tableInfo) > 0:
+                            stages = sorted(tableInfo.keys())
+                            if (len(stages) > 0):
+                                tableInfoStr += "in stages %d .. %d (words assigned, input xbar subunits, action xbar bits): " % (stages[0], stages[-1])
+                                pass
+                            for st in stages:
+                                mems = sorted(tableInfo[st].keys())
+                                for mem in mems:
+                                    memInfo = tableInfo[st][mem]
+                                    words = 0
+                                    inputXbar = 0
+                                    actionXbar = 0
+                                    if 'numWordsAssigned' in memInfo:
+                                        words = memInfo['numWordsAssigned']
+                                        pass
+                                    if 'numCrossbarSubunits' in memInfo:
+                                        inputXbar = memInfo['numCrossbarSubunits']
+                                        pass
+                                    if 'widthActionData' in memInfo:
+                                        actionXbar = memInfo['widthActionData']
+                                        pass
+                                    if  words > 0:
+                                        tableInfoStr += " St %d %s: %d, %d, %db" % (st, mem, words, inputXbar, actionXbar)
+                                        pass
+                                    else:
+                                        tableInfoStr += " St %d %s: X" % (st, mem)
+                                        constraintViolatedMsg = ""
+                                        if 'constraintViolatedMsg' in memInfo:
+                                            constraintViolatedMsg = memInfo['constraintViolatedMsg']
+                                            constraintViolatedStr += "No words in St %d %s: \"%s\"\n" % (st, mem, constraintViolatedMsg)
+                                            pass
+                                        pass
+                                    if mem == mems[-1]:
+                                        tableInfoStr += "; "
+                                        pass
+                                    pass
+                                pass
+                            pass
+                        tableInfoStr += "\n"
+                        self.logger.info(tableInfoStr);
+                        if (len(constraintViolatedStr) > 0):
+                            self.logger.info("Some stages couldn't fit any words\n" + constraintViolatedStr)
+                            pass
+                        pass
+                    pass
+                pass
+        pass
     
     def solve(self,program, switch, preprocess):
+        """ Runs a greedy heuristic and returns switch configuration"""
         solveStart = time.time()
         self.program = program
         self.switch = switch
@@ -462,15 +555,28 @@ class RmtGreedyCompiler:
             pfMax[mem] = self.preprocess.layout[mem].shape[1]
             pass
 
+        # number of blocks of mem available in st- blocksPerSt[mem][st]
         self.blocksPerSt = {}
+        # number of blocks of mem available over all stages- numBlocks[mem]
         self.numBlocks = {}
+        # blocksPerPf[mem](log, ) is a list of packing unit sizes
+        # for table log and memory type mem e.g., blocksPerPf[mem](log,p)
+        # is the number of blocks used for the pth packing unit
+        # blocksPerPf and wordsPerPf basically describe what the pth packing
+        # for mem, log looks like- blocksPerPf is the number of mem blocks
+        # it takes, and wordsPerPf is the number of log entries it can fit.
         self.blocksPerPf = {}
         self.wordsPerPf = {}
-        self.block = {}
+        # for a given mem, layout[mem](log*stMax+st, p) is the number
+        # of packing units of the pth type assigned for table log in stage st.
+        # see above for what packing units of the pth type for mem, log means
         self.layout = {}
-        self.word = {} 
+        # setup resources to fill in, indexed by [mem](log,st)
+        self.block = {}
+        self.word = {}
         self.inputCrossbar = {}
         self.actionCrossbar = {}
+        # track last used mem block in each st, indexed by [mem](st)
         self.lastBlock = {}
 
         for mem in self.switch.allTypes:
@@ -489,7 +595,11 @@ class RmtGreedyCompiler:
             self.lastBlock[mem] = [-1] * stMax
             pass
 
+        # get the order in which to assign tables, based on heuristic
+        # FFL order defined in rmt_ffl_.., FFD order defined in rmt_ffd_..
         self.getOrderedTables()
+
+        # table -> last stage assigned for table
         self.assigned = {}
         self.assigned['start'] = 0
         
@@ -497,16 +607,39 @@ class RmtGreedyCompiler:
 
         self.currentStage = 0
         self.table = 'begin'
-        
+
+        # While compiler simply gives up when a program doesn't fit
+        # We can output some helpful information from the compilation attempt
+        # so the user can figure out how to modify the program
+        # order of tables attempted, table that didn't fit
+        # for each table, number of match entries fit in each stage
+        # we'll store all this info. in @compilerAttempt
+        compilerAttempt = {}
+        compilerAttempt['solved'] = True
+        compilerAttempt['tables'] = []
+        compilerAttempt['tableInfo'] = {}
+
+        # In displaying configuration at the end, we'll log more info like
+        # dependencies that caused a table to start later than earliest stage possible
+
+        # the greedy heuristic assignment process
+        # the outer loop iterates through tables (already ordered by FFL/ FFD etc.)
+        # the inner loop iterates through each memory type in each stage, 
+        #  starting from the earliest stage that the table can be assigned to,
+        #  all the way until the all entries of the table are assigned (or
+        #  it runs out of stages)
         while(self.table != 'end' and self.currentStage < self.switch.numStages):
             self.table, earliest = self.getNextTable()
             if (self.table == 'end'):
                 continue
-            
+            compilerAttempt['tables'].append(self.table)
+            compilerAttempt['tableInfo'][self.table] = {}
+            # map from table to map of stages
+            # map from stage to info about how table used stage
             tableIndex = self.getIndex(self.table, program.names)
             self.numWordsLeft = int(program.logicalTables[tableIndex])
                             
-            self.logger.info("Next table " + self.table)
+            self.logger.debug("Next table " + self.table)
             self.logger.debug("number of words left " + str(self.numWordsLeft))
 
             if self.numWordsLeft == 0:
@@ -520,11 +653,15 @@ class RmtGreedyCompiler:
             currentMem = 0
             # Assigns consecutive blocks (skipping stages if needed) to table.
 
-            while(self.numWordsLeft > 0 and self.currentStage < self.switch.numStages):
+            while(self.numWordsLeft > 0 and self.currentStage < self.switch.numStages):                
                 lastBlockInCurrentStage = {}
                 for mem in self.switch.memoryTypes:
                     lastBlockInCurrentStage[mem] = self.lastBlock[mem][self.currentStage]
                     pass
+
+                compilerAttempt['tableInfo'][self.table][self.currentStage] = {}
+                compilerAttempt['tableInfo'][self.table][self.currentStage][mems[currentMem]] = {}
+                compilerAttempt['tableInfo'][self.table][self.currentStage][mems[currentMem]]['numWordsLeft'] = self.numWordsLeft
 
                 self.logger.debug("current table index %d" % tableIndex)
                 self.logger.debug("current mem %d" % currentMem)
@@ -558,7 +695,10 @@ class RmtGreedyCompiler:
                                  + str(bestFit['numMatchWords']) + " words in current stage." +\
                                  " and " + str(int(self.numWordsLeft))\
                                  + " words are left.")
-
+                # If no entries fit in the stage, it's because we've run out of resources like
+                #  SRAMs, TCAMs (not enough to fit even one entry), action crossbar space
+                #  input crossbar space.
+                
                 constraintViolatedMsg = ""
                 if bestFit['numMatchWords'] == 0:
                     constraintViolatedMsg += "Can't fit any entries (%db). " % self.program.logicalTableWidths[tableIndex]
@@ -576,11 +716,16 @@ class RmtGreedyCompiler:
                     constraintViolatedMsg += "Need %d action data bits, only %d available. "\
                         % (widthActionData, availableWidthActionData)
                     pass
+
                 if len(constraintViolatedMsg) > 0:
+                    compilerAttempt['tableInfo'][self.table][self.currentStage][mems[currentMem]]['constraintViolatedMsg'] = constraintViolatedMsg
+
                     constraintViolatedMsg =\
                         "Constraint violated in st %d (%s): %s" % (self.currentStage, mems[currentMem],\
                                                                           constraintViolatedMsg)
-
+                    compilerAttempt['tableInfo'][self.table][self.currentStage][mems[currentMem]]['numWordsAssigned'] = 0
+                    compilerAttempt['tableInfo'][self.table][self.currentStage][mems[currentMem]]['numCrossbarSubunits'] = 0
+                    compilerAttempt['tableInfo'][self.table][self.currentStage][mems[currentMem]]['widthActionData'] = 0
                     currentMem = (currentMem + 1)%len(mems)
                     updateMsg = "Moving to %s" % mems[currentMem]
                     if currentMem == 0:
@@ -588,14 +733,19 @@ class RmtGreedyCompiler:
                         updateMsg = "Moving to st %d (%s)." % (self.currentStage, mems[currentMem])
                         pass
                     constraintViolatedMsg += updateMsg
-                    self.logger.info(constraintViolatedMsg)
+                    self.logger.debug(constraintViolatedMsg)
 
-                    pass                
+                    pass
+                # if we can't fit all the match entries left in this stage alone
+                # assign in the remaining memory blocks and move on
                 elif bestFit['numMatchWords'] < self.numWordsLeft:
                     self.logger.debug("assigned remaining blocks in current stage")
                     self.updateLastBlockAndAssign(tableIndex, mems[currentMem], bestFit,\
                                                       numSramBlocksReserved = numSramBlocksReserved,\
                                                       fill=True)
+                    compilerAttempt['tableInfo'][self.table][self.currentStage][mems[currentMem]]['numWordsAssigned'] = bestFit['numMatchWords']
+                    compilerAttempt['tableInfo'][self.table][self.currentStage][mems[currentMem]]['numCrossbarSubunits'] = numSubunits
+                    compilerAttempt['tableInfo'][self.table][self.currentStage][mems[currentMem]]['widthActionData'] = widthActionData
                     
                     self.numWordsLeft -= bestFit['numMatchWords']
                     self.logger.debug(" but " + str(self.numWordsLeft) + " words left.")
@@ -606,11 +756,11 @@ class RmtGreedyCompiler:
                         self.currentStage += 1
                         self.logger.debug(" updating current stage to " + str(self.currentStage))
                         pass
-
-
                     pass
-
                     pass
+                # if we can fit more entries than all the match entries that are left,
+                # then find out the minimum number of blocks for just the
+                # the number of entries left
                 else:
                     bestFit = self.getBestFitForWords(tableIndex, mems[currentMem], lastBlock=lastBlockInCurrentStage, numWordsLeft=self.numWordsLeft)
                     """
@@ -625,9 +775,16 @@ class RmtGreedyCompiler:
                     self.logger.debug("assigned " + str(bestFit['numMatchBlocks']) + " blocks in current stage")
                     self.logger.debug(" finished with " + str(self.table) +\
                                      " in stage "  + str(self.currentStage))
+                    compilerAttempt['tableInfo'][self.table][self.currentStage][mems[currentMem]]['numWordsAssigned'] = self.numWordsLeft
+                    compilerAttempt['tableInfo'][self.table][self.currentStage][mems[currentMem]]['numCrossbarSubunits'] = numSubunits
+                    compilerAttempt['tableInfo'][self.table][self.currentStage][mems[currentMem]]['widthActionData'] = widthActionData
                     self.numWordsLeft = 0
                     pass
                 pass
+            # Check if we've run out of stage
+            # either we ended in a stage before last (good)
+            # or we ended in the last stage with some entries still
+            #  unassigned (bad)
             if (self.currentStage < self.switch.numStages):            
                 string = ""
                 for mem in self.switch.memoryTypes:
@@ -642,6 +799,7 @@ class RmtGreedyCompiler:
             elif (self.numWordsLeft > 0):
                 numAssigned = len(self.assigned) - ('start' in self.assigned) - ('end' in self.assigned)
                 numTables = len(self.program.names)
+                compilerAttempt['solved'] = False
                 self.results['solved'] = False
                 self.logger.warn("OUT OF STAGES!!! Could assign " + str(numAssigned) + " tables "\
                                  + " out of " + str(numTables))
@@ -649,12 +807,13 @@ class RmtGreedyCompiler:
                 pass
             pass
 
+        self.logCompilerAttempt(compilerAttempt)
         config = RmtConfiguration(program=self.program, switch=self.switch,\
                                       preprocess=self.preprocess,\
                                       layout=self.layout, version=self.version)
-        self.logger.info("CONFIGURING LAYOUT FOR %s" % self.layout.keys())
+        self.logger.debug("CONFIGURING LAYOUT FOR %s" % self.layout.keys())
 
-        self.logger.debug("done")
+        self.logger.info("done")
         self.results['power'] = config.getPowerForRamsAndTcams()
         self.results['pipelineLatency'] = config.getPipelineLatency()
         self.results['totalUnassignedWords']= config.totalUnassignedWords
