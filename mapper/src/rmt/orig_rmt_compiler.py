@@ -84,7 +84,6 @@ class RmtIlpCompiler:
         self.numConstraints = 0
 
         self.dimensionSizes = {}
-        self.logger = self.logger.getLogger(__name__)
         pass
 
     def setDimensionSizes(self):
@@ -115,7 +114,7 @@ class RmtIlpCompiler:
             log_list.append('%d*%s(%d)' % \
                 (dictCount[key], key, self.dimensionSizes[key]))
             compute_value += dictCount[key] * self.dimensionSizes[key]
-        self.logger.info("%s = %d" % (" + ".join(log_list), compute_value))
+        self.logger.debug("%s = %d" % (" + ".join(log_list), compute_value))
 
         return compute_value
 
@@ -271,6 +270,7 @@ class RmtIlpCompiler:
         pass
 
     def checkPipelineLatencyConstraint(self, model):
+        correct = True
         startAllMemTimesStartTimeOfStage = model[self.startAllMemTimesStartTimeOfStage]
         endAllMemTimesStartTimeOfStage = model[self.endAllMemTimesStartTimeOfStage]
         startTimeOfStage = model[self.startTimeOfStage]
@@ -298,7 +298,7 @@ class RmtIlpCompiler:
                  ", ".join(["%s: %s" % (self.program.names[log], tableInfo[log]) for log in tablesThatStart])
              pass
         
-        self.logger.info(stageInfo)
+        self.logger.debug(stageInfo)
 
         startTimeOfStartStageOfLog = {}
         startTimeOfEndStageOfLog = {}
@@ -315,11 +315,11 @@ class RmtIlpCompiler:
                              startTimeOfStage[st-1] + self.switch.successorDelay):
                 roundOkay = (round(startTimeOfStage[st]) >=\
                              round(startTimeOfStage[st-1]) + self.switch.successorDelay)
-                level = self.logger.WARNING
+                level = logging.WARNING
                 if not roundOkay:
-                    level = self.logger.ERROR
+                    level = logging.ERROR
                     pass
-
+                correct = False
                 self.logger.log(level, "successor dependency constraint on latency violated at %d" % st)
             pass
         
@@ -329,10 +329,11 @@ class RmtIlpCompiler:
                    startTimeOfEndStageOfLog[log1] + self.switch.matchDelay):
                 roundOkay = (round(startTimeOfStartStageOfLog[log2]) >=\
                                  round(startTimeOfEndStageOfLog[log1]) + self.switch.matchDelay)
-                level = self.logger.WARNING
+                level = logging.WARNING
                 if not roundOkay:
-                    level = self.logger.ERROR
+                    level = logging.ERROR
                     pass
+                correct = False
                 self.logger.log(level,\
                                     "match dependency (%s, %s)" % (self.program.names[log1], self.program.names[log2])\
                                     + " on latency violated:"\
@@ -347,11 +348,11 @@ class RmtIlpCompiler:
                    startTimeOfEndStageOfLog[log1] + self.switch.actionDelay):
                 roundOkay = (round(startTimeOfStartStageOfLog[log2]) >=\
                                  round(startTimeOfEndStageOfLog[log1]) + self.switch.actionDelay)
-                level = self.logger.WARNING
+                level = logging.WARNING
                 if not roundOkay:
-                    level = self.logger.ERROR
+                    level = logging.ERROR
                     pass
-
+                correct = False
                 self.logger.log(level,\
                                     "action dependency (%s, %s) " % (self.program.names[log1], self.program.names[log2])\
                                  + " on latency violated:"\
@@ -361,7 +362,7 @@ class RmtIlpCompiler:
             pass
 
                     
-        pass
+        return correct
 
     def pipelineLatencyConstraint(self):
         self.startTimeOfStartStageOfLog = {}
@@ -400,6 +401,7 @@ class RmtIlpCompiler:
         pass
         
     def checkStartingAndEndingStagesConstraint(self, model):
+        correct = True
         blockAllMemBin = model[self.blockAllMemBin]
         endAllMem= model[self.endAllMem]
         startAllMem=model[self.startAllMem]
@@ -408,22 +410,24 @@ class RmtIlpCompiler:
         for log in range(self.logMax):
             if not(sum([endAllMem[log,st] for st in range(self.stMax)]) == 1):
                 roundOkay = (sum([round(endAllMem[log,st]) for st in range(self.stMax)]) == 1)
-                level = self.logger.WARNING
+                level = logging.WARNING
                 if not roundOkay:
-                    level = self.logger.ERROR
+                    level = logging.ERROR
                     pass
+                correct = False
                 self.logger.log(level, "Constraint violated- more/less than one end stage for " + self.program.names[log])
                 pass
             if not(sum([startAllMem[log,st] for st in range(self.stMax)]) == 1):
                 roundOkay = (sum([round(startAllMem[log,st]) for st in range(self.stMax)]) == 1)
-                level = self.logger.WARNING
+                level = logging.WARNING
                 if not roundOkay:
-                    level = self.logger.ERROR
+                    level = logging.ERROR
                     pass
+                correct = False
                 self.logger.log(level, "Constraint violated- more/less than one start stage for " + self.program.names[log])
                 pass
             pass
-        pass
+        return correct
 
     def displayActiveRams(self, model):
         """
@@ -431,7 +435,7 @@ class RmtIlpCompiler:
         - number of RAMs for a match packing units (enforce one type per st)
         - + number of RAMs for an action packing unit
         """
-        self.logger.info("DISPLAY ACTIVE RAMS")
+        self.logger.debug("DISPLAY ACTIVE RAMS")
         ramsForPUnits = 0
         for st in range(self.stMax):
             for log in range(self.logMax):
@@ -454,7 +458,7 @@ class RmtIlpCompiler:
                                           (layoutStr, idStr))
                         pass
                     elif numPUnits > 0 and present > 0:
-                        self.logger.info(idStr)
+                        self.logger.debug(idStr)
                         ramsForPUnits += ramsPerPUnit
                         pass
                     pass
@@ -474,12 +478,12 @@ class RmtIlpCompiler:
                                       (layoutStr, idStr))
                     pass
                 elif numPUnits > 0 and present > 0:
-                    self.logger.info(idStr)
+                    self.logger.debug(idStr)
                     ramsForPUnits += ramsPerPUnit
                     pass
                 
                 pass
-            self.logger.info("%d active RAMs over all stages" % ramsForPUnits)
+            self.logger.debug("%d active RAMs over all stages" % ramsForPUnits)
             pass
         pass
 
@@ -505,9 +509,9 @@ class RmtIlpCompiler:
                 if (startStage[log] > st and totalBlocks > 0):
                     binary = model[self.blockAllMemBin][log,st]
                     roundOkay = not (round(startStage[log]) > st and round(totalBlocks) > 0)
-                    level = self.logger.WARNING
+                    level = logging.WARNING
                     if not roundOkay:
-                        level = self.logger.ERROR
+                        level = logging.ERROR
                         pass
 
                     self.logger.log(level, "startStage def. constraint violated for log %s, st %d: " % (self.program.names[log], st)\
@@ -691,6 +695,7 @@ class RmtIlpCompiler:
         self.dictNumConstraints['allMem*pf*log*st'] += 1
 
     def checkInputCrossbarConstraint(self, model, mem):
+        correct = True
         blockBin = model[self.blockBin[mem]]
         numSubunitsNeeded = {}
         numSubunitsAvailable = {}
@@ -703,16 +708,16 @@ class RmtIlpCompiler:
                 roundOkay = (sum([round(blockBin[log,st]) *\
                                      self.preprocess.inputCrossbarNumSubunits[mem][log] for log in range(self.logMax)])\
                                      <= numSubunitsAvailable)
-                level = self.logger.WARNING
+                level = logging.WARNING
                 if not roundOkay:
-                    level = self.logger.ERROR
+                    level = logging.ERROR
                     pass
-
+                correct = False
                 self.logger.log(level, "Input Crossbar Constraint violated in st %d, mem %s" % (st,mem) +\
                              "Used " + str(numSubunitsNeeded) +", Available " + str(numSubunitsAvailable))
                 pass
             pass        
-        pass
+        return correct
 
     def inputCrossbarConstraint(self):
         numSubunitsNeeded = {}
@@ -1007,23 +1012,25 @@ class RmtIlpCompiler:
           endAllMemTimesBlockAllMemBin
         pass
 
+    # LY's experiment- where ILP speeds up if it doesn't have to
+    # assign action data
     def displayMaximumStage(self, model):
         maximumStage = sum([model[self.isMaximumStage][st]*st\
                                 for st in range(self.stMax)])
-        self.logger.info("maximum stage from model: %.1f" % maximumStage)
+        self.logger.debug("maximum stage from model: %.1f" % maximumStage)
         numMaxStages = sum([model[self.isMaximumStage][st] for\
                                 st in range(self.stMax)])
-        self.logger.info("num maximum stages from model: %.1f" %\
+        self.logger.debug("num maximum stages from model: %.1f" %\
                          numMaxStages)
         sumOverSt =\
             sum([model[self.isMaximumStageTimesTotalBlocksForStBin]\
                      [st] for st in range(self.stMax)])
-        self.logger.info(\
+        self.logger.debug(\
             "sum over is max st time totalBlocksForStBin: %.1f" %\
                 sumOverSt)
-        infoStr =\
+        debugStr =\
             "totalBlocksForStBin, isMaximumStage, "
-        infoStr += "total (w/o action), total (w action)\n"
+        debugStr += "total (w/o action), total (w action)\n"
         for st in range(self.stMax):
             totalWoAction = sum([model[self.block[mem]][log,st]\
                              for log in range(self.logMax)\
@@ -1032,7 +1039,7 @@ class RmtIlpCompiler:
             totalWAction = totalWoAction +\
                 sum([model[self.block['action']][log,st]\
                              for log in range(self.logMax)])
-            infoStr +=\
+            debugStr +=\
                 ("St %d: %.1f, %.1f, %.1f, %.1f\n" %\
                      (\
                     st,\
@@ -1040,7 +1047,7 @@ class RmtIlpCompiler:
                         model[self.isMaximumStage][st],\
                         totalWoAction, totalWAction))
             pass
-        self.logger.info(infoStr)
+        self.logger.debug(debugStr)
         pass
     
         
@@ -1056,7 +1063,7 @@ class RmtIlpCompiler:
         # so start/ end/ max stage, latency etc.
         # based only on match RAMs
         self.all = self.switch.memoryTypes
-        self.logger.info("Types counted in start/end/max stage, latency: %s" %\
+        self.logger.debug("Types counted in start/end/max stage, latency: %s" %\
                           self.all)
         ####################################################
         # Constants
@@ -1149,78 +1156,97 @@ class RmtIlpCompiler:
         self.dictNumVariables['st'] += 3
 
         # Starting and ending stage variables logMax * stMax * 3 * 2
+        self.logger.info("Setting up variables for start and end stages");
         self.startAndEndStagesVariables()
+
         self.getXxAllMemTimesBlockAllMemBin()
-        
+
+        self.logger.info("Setting up constraints to get pipeline latency");
         self.pipelineLatencyVariables()
         
         # BASIC CONSTRAINTS
         # Sets block and word variables
         # Blocks and Words for logical table/ stage are consistent with
         # chosen layouts
+        self.logger.info("Setting up constraints to relate number of packing units per table to blocks and words per table");
         self.wordLayoutConstraint()
 
         # Blocks assigned to match, action etc. in each  stage/ memory don't
         # exceed capacity
         if 'capacity' != self.ignoreConstraint:
+            self.logger.info("Setting up capacity constraints for blocks used per stage.")
             self.capacityConstraint()
-
+            pass
         # Use memory type only where allowed
         if 'useMemory' != self.ignoreConstraint:
             self.useMemoryConstraint()
 
         # Assign enough match words for each table
         if 'assignment' != self.ignoreConstraint:
-            self.assignmentConstraint()
+            self.logger.info("Setting up constraints to enforce tables are assigned to valid memory types (e.g., lpm to TCAM but not SRAM)");
 
+            self.assignmentConstraint()
+            pass
         # Get starting and ending stages for logical tables over all memory
         # types
+        self.logger.info("Setting up constraints for start and end stages");
         self.getStartingAndEndingStages()
 
         # Match, Action, Successor dependency constraint on starting and 
         # ending stages for each logical table
         if 'dependency' != self.ignoreConstraint:
-            self.dependencyConstraint()
+            self.logger.info("Setting up dependency constaint on starting and ending stages for each logical table");
 
+            self.dependencyConstraint()
+            pass
         # RMT SPECIFIC CONSTRAINTS
 
         # At least as many action words as match words for a logical table
         # in each stage
         if 'action' != self.ignoreConstraint:
+            self.logger.info("Setting up constraint to ensure there is at least one action data word for every match entry assigned for a logical table.")
             self.actionAssignmentConstraint()
-
+            pass
+        
         self.getBlockBinary()
         # No more than XX subunits used from input crossbar at each stage
         if 'inputCrossbar' != self.ignoreConstraint:
+            self.logger.info("Setting up resource constraint for number of input crossbar subunits used per stage")
             self.inputCrossbarConstraint()
-
+            pass
+        
         self.getBlockAllMemBinary()
         # No more than XX tables matched in each stage
         if 'resolutionLogic' != self.ignoreConstraint:
+            self.logger.info("Setting up constraint to enforce no more than xx logical tables per stage")
             self.resolutionLogicConstraint()
 
         # No more than XX bits used from action crossbar at each stage
         if 'actionCrossbar' != self.ignoreConstraint:
+            self.logger.info("Setting up resource constraint for number of bits of action data crossbar used per stage for each memory")
             self.actionCrossbarConstraint()
 
         self.getStartAllMemTimesStartTimeOfStage()
         self.getEndAllMemTimesStartTimeOfStage()
         if self.ignoreConstraint != 'pipelineLatency' and \
                 self.objectiveStr not in ['maximumStage', 'powerForRamsAndTcams']:
+            self.logger.info("Setting up pipeline latency constraint")
             self.pipelineLatencyConstraint()
         else:
-            print 'pipelineLatency constraint ignored!!'
-        
+            print 'pipelineLatency constraint ignored since we are not optimizing for pipeline latency!!'
+
+        self.logger.info("Setting up constraint to get an upper bound on maximum stage, which can minimize in objective if needed")
         self.maximumStageConstraint()
 
         self.startingDict = {}
 
-        self.logger.debug("Solving ")
         configs = {}
         if len(self.greedyVersion)>0:
             numSramBlocksReserved=int(self.greedyVersion.split("-")[1])
             ####################################################
-            self.logger.debug("Getting a greedy solution")
+            self.logger.info("Getting a greedy solution")
+            self.logger.info("~~")
+            self.logger.info("Greedy compiler's log begins..")
             greedyCompiler = rmt_ffd_compiler.RmtFfdCompiler(numSramBlocksReserved)
             if 'ffl' in self.greedyVersion:
                 greedyCompiler = rmt_ffl_compiler.RmtFflCompiler(numSramBlocksReserved)
@@ -1228,12 +1254,14 @@ class RmtIlpCompiler:
             start = time.time()
             greedyConfig =\
                 greedyCompiler.solve(self.program, self.switch, self.preprocess)['greedyConfig']
+            self.logger.info("Greedy compiler's log ends..")
             configs['greedyConfig'] = greedyConfig
+            self.logger.info("~~")
 
             end = time.time()
             ####################################################
-            self.logger.debug("Displaying greedy solution")
-            greedyConfig.display()
+            #self.logger.debug("Displaying greedy solution")
+            #greedyConfig.display()
             ####################################################
             self.logger.debug("Saving results from greedy")
             self.results['greedyTotalUnassignedWords'] = greedyCompiler.results['totalUnassignedWords']
@@ -1254,7 +1282,10 @@ class RmtIlpCompiler:
                                           layout=greedyCompiler.layout,\
                                           word=greedyCompiler.word,\
                                           startTimeOfStage=greedyConfig.getStartTimeOfStage())
-            self.checkConstraints(self.startingDict)        
+            self.logger.info("Checking greedy solution.")
+            if self.checkConstraints(self.startingDict):
+                self.logger.info("Solution looks good.")
+                pass
             pass
 
         #totalBlocks = sum(sum([totalBlocks[mem] for mem in switch.memoryTypes]))
@@ -1262,16 +1293,22 @@ class RmtIlpCompiler:
         pipelineLatency = self.startTimeOfStage[self.stMax-1]
         totalMemBlocks = sum([self.block[mem].T for mem in self.switch.allTypes])
         totalBlocks = (totalMemBlocks * np.ones(self.logMax)).T * np.ones(self.stMax)
-        self.logger.info("Shape of totalMemBlocks %s" % str(totalMemBlocks.shape))
-        self.logger.info("Shape of np.ones(self.logMax) %s" % str(np.ones(self.logMax).shape))
-        self.logger.info("Shape of np.ones(self.stMax) %s" % str(np.ones(self.stMax).shape))
+        self.logger.debug("Shape of totalMemBlocks %s" % str(totalMemBlocks.shape))
+        self.logger.debug("Shape of np.ones(self.logMax) %s" % str(np.ones(self.logMax).shape))
+        self.logger.debug("Shape of np.ones(self.stMax) %s" % str(np.ones(self.stMax).shape))
 
         maximumLatency = self.switch.matchDelay * self.switch.numStages
         maximumStage = sum([self.isMaximumStage[st]*st\
                                 for st in range(self.stMax)])
 
         self.getLayoutBinary()
+
+        self.logger.info("Setting up constraint to ensure only one kind of packing unit is used for"\
+        + " a logical table in a stage, though it may use a different kind in another stage.")
         self.onePackingUnitForLogInStage()
+
+        self.logger.info("Setting up constraint and variables to get power used for RAMs and TCAMs")
+        
         self.getPowerForRamsAndTcamsObjective()
         powerForRamsAndTcams = self.powerForRamsAndTcams
         if self.objectiveStr == 'totalBlocks':
@@ -1286,14 +1323,15 @@ class RmtIlpCompiler:
 
         solverTimes = []
         nIterations = []
-        
+
+        # For logging only
         self.setDimensionSizes()
-        self.logger.info("Computing variables:")
+        self.logger.debug("Computing variables:")
         self.numVariables = self.computeSum(self.dictNumVariables)
-        self.logger.info("Computing Constraints:")
+        self.logger.debug("Computing Constraints:")
         self.numConstraints = self.computeSum(self.dictNumConstraints)
-        self.logger.info("numRows: %d" % self.m.getNRows())
-        self.logger.info("numCols: %d" % self.m.getNCols())
+        self.logger.debug("numRows: %d" % self.m.getNRows())
+        self.logger.debug("numCols: %d" % self.m.getNCols())
         # FIND WHAT THE MINIMUM VALUE FOR OBJECTIVE STR IS
         try:
             self.m.minimize(objectives[self.objectiveStr], starting_dict=self.startingDict,\
@@ -1306,11 +1344,11 @@ class RmtIlpCompiler:
         except Exception, e:
             self.logger.exception(e)
             pass
-        self.checkConstraints(self.m)
+        self.logger.info("Checking ILP solution")
+        if (self.checkConstraints(self.m)):
+            self.logger.info("Solution looks good.")
+            pass
 
-        # 3: Emphasize moving best bound: even greater emphasis is placed on proving optimality
-        # through moving the best bound value, so that the detection of feasible solutions along
-        # the way becomes almost incidental.
         solverTimes.append(self.m.getSolverTime())
         nIterations.append(self.m.getNIterations())
         """
@@ -1360,8 +1398,8 @@ class RmtIlpCompiler:
         self.results['solveTime'] = solveEnd - solveStart
 
         ####################################################
-        self.logger.debug("Displaying ILP solution")
-        config.display()
+        #self.logger.debug("Displaying ILP solution")
+        #config.display()
         ####################################################
         configs['ilp-%s' % self.objectiveStr] = config
         return configs
@@ -1406,16 +1444,25 @@ class RmtIlpCompiler:
 
     def checkConstraints(self,model):
         """ Given a complete model with all variables filled in,
-        checks against the inequality constraints that define the ILP
+        checks against (some of) the inequality constraints that define the ILP
         and warns if anything's violated. Used to check greedy solutions,
         and other starting solutions.
         """
-        self.checkPipelineLatencyConstraint(model)
-        for mem in self.switch.memoryTypes:
-            self.checkInputCrossbarConstraint(model, mem)
+        correct = True
+        if self.ignoreConstraint != 'pipelineLatency' and \
+                self.objectiveStr not in ['maximumStage', 'powerForRamsAndTcams']:
+            correct = correct and self.checkPipelineLatencyConstraint(model)
+            # since we don't setup pipeline latency constraint unless we're optimizing
+            #  pipeline latency (otherwise it adds unnecessary complexity/ run time)
             pass
-        self.checkStartingAndEndingStagesConstraint(model)
-        self.displayStartingAndEndingStages(model)
-        self.displayActiveRams(model)
-        self.displayMaximumStage(model)
-        pass
+        
+        for mem in self.switch.memoryTypes:
+            correct = correct and self.checkInputCrossbarConstraint(model, mem)
+            pass
+        correct = correct and self.checkStartingAndEndingStagesConstraint(model)
+        
+        # For logging only
+        #self.displayStartingAndEndingStages(model)
+        #self.displayActiveRams(model)
+        #self.displayMaximumStage(model)
+        return correct
