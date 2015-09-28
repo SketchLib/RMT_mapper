@@ -13,17 +13,31 @@ class FlexpipeIlpCompiler:
                      timeLimit = None,\
                      outputFileName=None,\
                      granLb = None):
+        """ Initialize compiler with CPLEX parameters @timeLimit and
+         @greedyVersion is 'lpt'/ None. If none, no starting solution
+         is provided for CPLEX.
+         @outputFileName is name used to save file containing info
+         about CPLEX parameters used.
+         @granLb is mapping from memory type to minimum physical table
+         size i.e., assignments to logical tables in blocks of this
+         memory type have at least granLb[mem] consecutive rows.
+         """
 
+        self.logger = logging.getLogger(__name__)
         
         self.granLb = granLb
-
         self.greedyVersion = greedyVersion
         self.timeLimit = timeLimit
         self.outputFileName = outputFileName
+
+        # Trick to check a given fully initialized
+        # ILP model against ILP constraints, when
+        # self.checking is true- constraints are checked
+        # for given model and violated constraints are logged,
+        # See checkSolution(model)
         self.checking = False
-        # allSl: maxslMax, sl: per mem per stage?,
-        # slPerMem: all blocks of mem across stages
-        # slPerStage: all blocks of stage across mem (use blocksInStage)
+
+        # For logging only
         self.dictNumVariables = \
             {'log': 0, 'st': 0, 'mem': 0, 'sl':0, 'log*st':0,
              'mem*log':0, 'mem*st':0, 'mem*log*st': 0,
@@ -42,6 +56,7 @@ class FlexpipeIlpCompiler:
         self.numConstraints = 0
         self.testNumConstraints = 0
         self.dimensionSizes = {}
+
         # indexed by name
         self.variablesByName = {}
         self.variables = {}
@@ -51,6 +66,7 @@ class FlexpipeIlpCompiler:
         self.varType = {}
         pass
 
+    # The following functions return 1-D indices
     def iOSl(self, mem, order, sl):
         return order * self.totalSlMax[mem] + sl
 
@@ -66,7 +82,8 @@ class FlexpipeIlpCompiler:
         
         return sl * self.orderMax * self.logMax +\
             order * self.logMax + log
-    
+
+    # Only for logging
     def setDimensionSizes(self):
         self.dimensionSizes = {
             'log': self.logMax, 
@@ -87,7 +104,24 @@ class FlexpipeIlpCompiler:
         }
         pass
 
+    # Only for logging
+    def computeSum(self, dictCount):
+        log_list = []
+        compute_value = 0
+        for key in dictCount:
+            log_list.append('%d*%s(%d)' % \
+                (dictCount[key], key, self.dimensionSizes[key]))
+            compute_value += dictCount[key]*self.dimensionSizes[key]
+        self.logger.debug("%s = %d" % (" + ".join(log_list), compute_value))
+
+        return compute_value
+
     def newVar(self, dims, vtype, name, ub=None, lb=None, realOkay=True):
+
+        # Setting non-boolean variables to be real rather than
+        # int, this speeds up CPLEX. We do round the variables
+        # to ints ultimately and check the final solution.
+        # see solve(..)
         if realOkay and vtype == int:
             vtype='real'
             pass
@@ -131,24 +165,21 @@ class FlexpipeIlpCompiler:
             return valid
         pass
 
-    def computeSum(self, dictCount):
-        log_list = []
-        compute_value = 0
-        for key in dictCount:
-            log_list.append('%d*%s(%d)' % \
-                (dictCount[key], key, self.dimensionSizes[key]))
-            compute_value += dictCount[key]*self.dimensionSizes[key]
-        logging.info("%s = %d" % (" + ".join(log_list), compute_value))
-
-        return compute_value
 
     def blockOverlap(self, mem, sl1, log, sl2):
+        """ Returns true if table @log starting in block @sl1 would
+        overlap block @sl2
+        """
         if sl1 not in self.blocksInSameStageAs(mem, sl2):
-            logging.debug("block overlap, different stages: " + str(sl1) + ", " + str(sl2))
+            self.logger.debug("block overlap, different stages: " + str(sl1) + ", " + str(sl2))
             pass
         return sl1 + self.preprocess.pfBlocks[mem][log] > sl2
 
     def blocksInStage(self, mem, st):
+        """ Returns indices of memory blocks of type @mem in stage @st
+        Indexing starts at 0 and covers all blocks of every memory
+        type in every stage.
+        """
         startBlock = 0
         for stage in range(0,st):
             startBlock += self.slMax[mem][stage]
@@ -159,12 +190,6 @@ class FlexpipeIlpCompiler:
     def blocksInSameStageAs(self, mem, sl):
         """
         Returns list of blocks for the stage (st) that sl is part of.
-        ex: sl = 20, blocks/st = 10 for all stages (sl indexed from 0).
-        loop: sl=20->10, totalBlocks=10; sl=10->0, totalBlocks=20,
-            sl=0->-10, totalBlocks=30
-        return: range(20-10, 20) = [10...19] (st: 0-9, 10-19, 20-29)
-        (sl = 20, index 0 -> st=3; sl=20 (20...29), index 1 -> st=2 (11...20)
-
         """
         st = 0
         totalBlocks = 0
@@ -176,6 +201,9 @@ class FlexpipeIlpCompiler:
             pass
         return range(totalBlocks - blocksPerStage, totalBlocks)
 
+    # The following functions returned flattened (1-D) versions
+    # of the input array
+    
     def flattenOrdSl(self, d, mem):
         ordMax, slMax = d.shape
         maxIndex  = ordMax * slMax
@@ -217,6 +245,11 @@ class FlexpipeIlpCompiler:
 
 
     def fillModel(self, startRowDict, numberOfRowsDict, model):
+        """ Given information about starting row and number of row
+        of each table in each block, fills in all the ILP
+        variables. Used to get a starting solution for ILP
+        from a greedy heuristic's output.
+        """
         LB = 1
         # for mem in self.switch.memoryTypes:
         #     logMax, slMax = startRowDict[mem].shape
@@ -255,7 +288,7 @@ class FlexpipeIlpCompiler:
                     pass
                 pass
             
-            logging.debug("numberOfRowsDict[%s]: %s" % (mem, str(numberOfRowsDict[mem])))
+            self.logger.debug("numberOfRowsDict[%s]: %s" % (mem, str(numberOfRowsDict[mem])))
             # Get first row and number of rows of log ..
             firstRowOfLog = np.zeros((self.logMax, sum(self.slMax[mem])), dtype=np.float64)
             numberOfRowsOfLog = np.zeros((self.logMax, sum(self.slMax[mem])), dtype=np.float64)
@@ -299,14 +332,14 @@ class FlexpipeIlpCompiler:
                                               numberOfRowsOfLog[logsInSl1[i],sl1]) for\
                                         i in range(len(logsInSl1))])
                 
-                logging.info("Tables in block %d of mem %s: %s" %\
+                self.logger.debug("Tables in block %d of mem %s: %s" %\
                                  (sl1, mem, logInfo))
                                       
-                logging.debug("number of logs in Sl %d of mem %s is %d" % (sl1, mem, len(logsInSl1)))
-                logging.debug("shape of firstRowOfOrd is %s" % str(firstRowOfOrd.shape))
-                logging.debug("shape of firstRowOfLog is %s" % str(firstRowOfLog.shape))
+                self.logger.debug("number of logs in Sl %d of mem %s is %d" % (sl1, mem, len(logsInSl1)))
+                self.logger.debug("shape of firstRowOfOrd is %s" % str(firstRowOfOrd.shape))
+                self.logger.debug("shape of firstRowOfLog is %s" % str(firstRowOfLog.shape))
                 if (len(logsInSl1) > self.orderMax):
-                    logging.warn("too many tables in block %d of mem %s (%d)- %s" %\
+                    self.logger.warn("too many tables in block %d of mem %s (%d)- %s" %\
                                      (sl1,mem,len(logsInSl1),\
                                           [self.program.names[log] for log in logsInSl1]))
                     pass
@@ -318,7 +351,7 @@ class FlexpipeIlpCompiler:
                       firstRowOfLog[log,sl1]
                     numberOfRowsOfLogTimesOrdToLog[self.iSlOL(mem,sl1,order,log)] =\
                       numberOfRowsOfLog[log,sl1]
-                    logging.debug("first row of %d th table in block %d" % (order, sl1) +\
+                    self.logger.debug("first row of %d th table in block %d" % (order, sl1) +\
                                   " = first row of logical table %d i.e., %d " % (log, firstRowOfLog[log,sl1]))
                     firstRowOfOrd[order, sl1] = firstRowOfLog[log,sl1]
                     numberOfRowsOfOrd[order, sl1] = numberOfRowsOfLog[log,sl1]
@@ -425,7 +458,9 @@ class FlexpipeIlpCompiler:
                               for mem in self.switch.memoryTypes\
                               for sl in self.blocksInStage(mem, st)])]
             if len(stages) == 0:
-                logging.warn("Warning! " + str(self.program.names[log]) + " not assigned to any stage")
+                self.logger.warn("Warning! " + str(self.program.names[log]) + " not assigned to any stage "\
+                                 + " counting table assignment only if number of rows > min size "\
+                                 + str(self.granLb[mem]))
                 pass
             else:
                 for st in stages:
@@ -452,13 +487,17 @@ class FlexpipeIlpCompiler:
         model[self.endAllMemTimesBlockAllMemBin] = self.flattenLogSt(\
             endAllMemTimesBlockAllMemBin, mem)
         #self.checkDependencyConstraint(model[self.startAllMem], model[self.endAllMem])
-        logging.info("initialized % d variables of ILP" % len(model.keys()))
+        self.logger.debug("initialized % d variables of ILP" % len(model.keys()))
         notInNames = [self.names[key] for key in self.names if key not in model]
-        logging.info("Didn't initialize [%s]" % ", ".join(notInNames))
+        self.logger.debug("Didn't initialize [%s]" % ", ".join(notInNames))
 
         pass
 
     def setup(self, program, switch, preprocess):
+        """
+        Set up variables, constraints and starting solution
+        (if specified) for CPLEX solver
+        """
         self.setupVariables(program, switch, preprocess)
         self.setupStartAndEndStagesVariables()
         self.setLb()
@@ -508,7 +547,7 @@ class FlexpipeIlpCompiler:
         
         # Each block can have up to orderMax tables, could depend on mem, st.
         orderMax = self.switch.maxTablesPerBlock
-        logging.debug("orderMax: " + str(orderMax))
+        self.logger.debug("orderMax: " + str(orderMax))
         self.orderMax = orderMax
         self.stMax = stMax
         self.slMax = slMax
@@ -549,12 +588,34 @@ class FlexpipeIlpCompiler:
         self.numberOfRowsUnit = {}
         self.numberOfRowsBinary = {}
         self.startRowTimesNumberOfRowsBinary = {}
+
         # index of first row of rows for a logical table in a block
         # 0/ not defined if logical tables is not in the blocks.
         self.firstRowOfLog = {}
         self.numberOfRowsOfLog = {}
         self.numberOfRowsOfLogBinary = {}
 
+        # Important note: There are two similar sounding sets
+        # of variables here (startRow/ numberOfRows)
+        # and (firstRowOfLog/ numberOfRowsOfLog)
+        # all indexed using self.iLSl(mem, log, sl)
+        # There is a subtle difference between the two-
+        # The first set considers rows where the table
+        #  starts in block @sl (vs starting in a previous
+        #   block and only overlapping @sl)
+        # The second set considers rows in @sl used by
+        #  the table @log irrespective of whether or not
+        #  it starts in that slice.
+
+        # Finally, there's a third set of variables
+        # that refer to the first row and number of
+        # rows if the first/ second/ third etc. table
+        # in a block (defined below)
+
+        # For all these variables, the first row
+        # value is defined/ usable only when the respective
+        # number of rows value is positive.
+        
         # index of first row of ord'th tables in a block
         self.firstRowOfOrd = {}
         self.numberOfRowsOfOrd = {}
@@ -569,6 +630,8 @@ class FlexpipeIlpCompiler:
         self.numberOfRowsOfLogTimesOrdToLog = {}
         ub = {}
         lb = {}
+
+        # Just logging
         self.dictNumVariables['mem*log*st'] += 1 # word
         self.dictNumVariables['mem*log*st'] += 1 # blocks
         self.dictNumVariables['mem*st'] += 2 # blocks
@@ -579,6 +642,7 @@ class FlexpipeIlpCompiler:
         self.dictNumVariables['log*sl*ord'] += 2 # first/number RowTimesOrdToLog
         self.dictNumVariables['sl*ord'] += 3 # first/number RowTimesOrd, numberBinary
         testlist = []
+        
         for mem in self.switch.memoryTypes:
             ub[mem] = {}
             lb[mem] = {}
@@ -735,6 +799,7 @@ class FlexpipeIlpCompiler:
 
 
     def setupConstraints(self, model=None):
+        """ Sets up all the different constraints. """
         switch = self.switch
         program = self.program
         preprocess = self.preprocess
@@ -744,25 +809,28 @@ class FlexpipeIlpCompiler:
         ####################################################
         # Constraints
         ####################################################
-        # Assign IP to 'ffu' and Ethertype to 'bst'
-#        eps = 0.01
-#        mem = 'ffu'
-#        index = self.iSlOL('ffu', 1, 0, 1)
-#        self.newConstr(self.numberOfRowsOfLogTimesOrdToLog[mem][index] >= eps)
-#        mem = 'bst'
-#        index = self.iSlOL('bst', 0, 0, 0)
-#        self.newConstr(self.numberOfRowsOfLogTimesOrdToLog[mem][index] >= eps)
         
         # GET VARIABLES THAT DEPEND ON startRow, numberOfRows, ordToLog
-       
+        if not self.checking:
+            self.logger.info("Setting up constraints for products and binarys");
+            pass
         self.setupConstraintsForProductsAndBinarys(model=model)
 
+        if not self.checking:
+            self.logger.info("Setting up constraints for start and end stages");
+            pass
         self.getStartingAndEndingStages(model=model) # tested
         
         # Get blocks and words from numberOfRows variables
+        if not self.checking:
+            self.logger.info("Setting up constraints to relate number of rows to blocks and words per table");
+            pass
         self.wordLayoutConstraint(model=model)
 
         # Get totalBlocks from blocks variables
+        if not self.checking:
+            self.logger.info("Setting up constraints to get total blocks used per stage and memory types");
+            pass
         for mem in switch.memoryTypes:
             for st in range(self.stMax):
                 self.newConstr(model[self.totalBlocks[mem]][st] ==\
@@ -773,17 +841,27 @@ class FlexpipeIlpCompiler:
 
         self.dictNumConstraints['mem*st'] += 1
         
-        # ORDER CONSTRAINTS
-        # A logical table assignment that overlaps a block
-        # is assigned to exactly one order in the block.
 
         memXSl = [(mem,sl)\
                           for mem in self.switch.memoryTypes\
                           for st in range(self.stMax)\
                           for sl in self.blocksInStage(mem,st)]
+        if not self.checking:
+            self.logger.info("For each stage and memory type- ")
+            self.logger.info("    Setting up constraints to enforce that a logical table assignment"\
+                             + " that overlaps a block is assigned to exactly one \"order\" in the blocks");
+            self.logger.info("    Setting up capacity constraints for blocks used per stage.")
+            self.logger.info("    Setting up constraints to make sure table assignments don't overlap.")
+            self.logger.info("    Setting up capacity constraints for rows used per block.")
+            self.logger.info("    Setting up constraints for maximum tables that can share a block.")
+            pass
+
         for mem,sl in memXSl:
             for log in range(self.logMax):
                 self.getXXOfLog(mem=mem, sl=sl, log=log, model=model)
+                # ORDER CONSTRAINTS
+                # A logical table assignment that overlaps a block
+                # is assigned to exactly one "order" in the block.
                 self.oneOrderPerLogConstraint(mem=mem, sl=sl, log=log, model=model)
                 self.capacityConstraintByBlock(mem=mem, log=log, sl=sl, model=model)
                 pass
@@ -798,28 +876,39 @@ class FlexpipeIlpCompiler:
             pass
         
         # Number of rows is either 0 or >= LB (.. and Binary.. is 1 iff >= LB)
+        if not self.checking:
+            self.logger.info("Setting up constraints to enforce minimum physical table size (numberOfRowsBound)");
+            pass
         self.numberOfRowsBounds(model=model)
 
         # Assign enough match words for each table
+        if not self.checking:
+            self.logger.info("Setting up constraints to assign enough match entries (words) oer logical table");
+            pass
         self.assignmentConstraint(model=model)
 
         # Match, Action, Successor dependency constraint on starting and 
         # ending stages for each logical table
+        if not self.checking:
+            self.logger.info("Setting up dependency constaint on starting and ending stages for each logical table");
+            pass
         self.dependencyConstraint(model=model)
 
 
         # Use TCAM/ SRAM only where allowed
+        if not self.checking:
+            self.logger.info("Setting up constraints to enforce tables are assigned to valid memory types (e.g., lpm to BST but not Hashtable)");
+            pass
         self.useMemoryConstraint(model=model)
         pass
 
     def setupStartingDict(self):
         self.startingDict = {}
         
-        logging.debug("Solving " )
         self.configs = {}
         if not(self.greedyVersion == None) and len(self.greedyVersion)>0:
             ####################################################
-            logging.info("Getting a greedy solution")
+            self.logger.info("Getting a greedy solution")
             greedyCompiler = flexpipe_lpt_compiler.FlexpipeLptCompiler()
             start = time.time()
             greedyConfig = greedyCompiler.solve(\
@@ -827,7 +916,7 @@ class FlexpipeIlpCompiler:
             self.configs['greedyConfig'] = greedyConfig
             end = time.time()
             ####################################################
-            logging.debug("Saving results from greedy")
+            self.logger.debug("Saving results from greedy")
             self.results['greedyTime'] = end - start
             self.results['greedySolved'] = greedyCompiler.results['solved']
             ####################################################
@@ -836,16 +925,18 @@ class FlexpipeIlpCompiler:
                 greedyConfig.showPic(prefix=picPrefix,suffix=picName+"-lpt")
             """
             ####################################################
-            logging.debug("Getting starting dict values for ILP from Greedy's solution")
+            self.logger.debug("Getting starting dict values for ILP from Greedy's solution")
             self.startingDict = {}
             self.fillModel(greedyCompiler.startRowDict,\
                                greedyCompiler.numberOfRowsDict,\
                                self.startingDict)
-            logging.info("Checking greedy's solution")
-            # Note that because of constraint on min. number of
-            # rows table, greedy's solution won't necessarily
-            # satisfy more constrained ILP, even if its valid.
-            self.checkSolution(model=self.startingDict)
+            self.logger.info("Checking greedy's solution")
+            self.logger.info("Note that because of constraint on min. number of"\
+             + " rows per table, greedy's solution won't necessarily"\
+             + " satisfy more constrained ILP, even if its valid.")
+            if (self.checkSolution(model=self.startingDict)):
+                self.logger.info("Solution looks good.")
+                pass
 
             for mem in self.switch.memoryTypes:
                 order = 0
@@ -854,13 +945,12 @@ class FlexpipeIlpCompiler:
                 pass
             self.results['greedyTotalUsedBlocks'] =\
                 greedyCompiler.results['totalUsedBlocks']
-                
+            self.logger.info("results[Greedy .." + str(self.results))                
             pass
 
-        logging.info("results[Greedy .." + str(self.results))
 
         if 'greedySolved' in self.results and not self.results['greedySolved']:
-            logging.warn("Greedy couldn't fit: " + str(self.results))
+            self.logger.warn("Greedy couldn't fit: " + str(self.results))
             pass
         
         return
@@ -869,11 +959,15 @@ class FlexpipeIlpCompiler:
             self.checking = True
             self.violated = []
             self.setupConstraints(model=model)
+            correct = True
 
-            logging.info("Number of violated constraints: %d (%s...)" %\
-                (len(self.violated), self.violated[:4]))
+            if (len(self.violated) > 0):
+                correct = False
+                self.logger.warn("Number of violated constraints: %d (%s...)" %\
+                                 (len(self.violated), self.violated[:4]))
+                pass
             
-
+            # Checking for out of bound variables
             outOfBounds = []
             for var in model:
                 name = self.names[var]
@@ -889,11 +983,13 @@ class FlexpipeIlpCompiler:
                     outOfBounds.append(infoStr)
                     pass
                 pass
-            logging.info("Number of out of bound variables: %d (%s...)" %\
-                (len(outOfBounds), outOfBounds[:3]))
-
+            if (len(outOfBounds) > 0):
+                correct = False
+                self.logger.warn("Number of out of bound variables: %d (%s...)" %\
+                                 (len(outOfBounds), outOfBounds[:3]))
+                pass
             self.checking = False
-            pass
+            return correct
 
     def setupConstraintsForProductsAndBinarys(self, model=None):
         for st in range(self.stMax):
@@ -904,7 +1000,7 @@ class FlexpipeIlpCompiler:
                 ub = self.varUb['totalBlocks'+mem]
                 valid = self.addBinaryConstraint(cont=cont,binary=binary,ub=ub, lb=1)
                 if self.checking and not valid:
-                    logging.warn("totalBlocks binary constraint violated in %s, st %s: cont %.3f, binary %.3f, ub %.3f" % (mem, st, cont, binary, ub))
+                    self.logger.warn("totalBlocks binary constraint violated in %s, st %s: cont %.3f, binary %.3f, ub %.3f" % (mem, st, cont, binary, ub))
                     pass
                 pass
 
@@ -917,7 +1013,7 @@ class FlexpipeIlpCompiler:
                 ub = sum([self.varUb['blocks'+mem] for mem in self.switch.memoryTypes])
                 valid = self.addBinaryConstraint(binary=binary, cont=cont, ub=ub, lb=1)
                 if self.checking and not valid:
-                    logging.warn("blockAllMem binary constraint violated in %d, %s: cont %.3f, binary %.3f, ub %.3f" %\
+                    self.logger.warn("blockAllMem binary constraint violated in %d, %s: cont %.3f, binary %.3f, ub %.3f" %\
                                      (st, self.program.names[log], cont, binary, ub))
                     pass
 
@@ -948,7 +1044,7 @@ class FlexpipeIlpCompiler:
                 lb = self.granLb[mem]
                 valid = self.addBinaryConstraint(binary=binary,cont=cont,ub=ub,lb=lb)
                 if self.checking and not valid:
-                    logging.warn("number of rows of log binary constraint violated in %s, sl %d, %s: cont %.3f, binary %.3f, ub %.3f" % (mem, sl, self.program.names[log], cont, binary, ub))
+                    self.logger.warn("number of rows of log binary constraint violated in %s, sl %d, %s: cont %.3f, binary %.3f, ub %.3f" % (mem, sl, self.program.names[log], cont, binary, ub))
                     pass
 
                 # numberOfRowsBinary
@@ -958,7 +1054,7 @@ class FlexpipeIlpCompiler:
                 lb = self.granLb[mem]
                 valid = self.addBinaryConstraint(binary=binary,cont=cont,ub=ub,lb=lb)
                 if self.checking and not valid:
-                    logging.warn("number of rows binary constraint violated in %s, sl %d, %s: cont %.3f, binary %.3f, ub %.3f" % (mem, sl, self.program.names[log], cont, binary, ub))
+                    self.logger.warn("number of rows binary constraint violated in %s, sl %d, %s: cont %.3f, binary %.3f, ub %.3f" % (mem, sl, self.program.names[log], cont, binary, ub))
                     pass
 
                 # startRowTimesNumberOfRowsBinary
@@ -999,7 +1095,7 @@ class FlexpipeIlpCompiler:
                 lb = self.granLb[mem]
                 valid = self.addBinaryConstraint(binary=binary,cont=cont,ub=ub,lb=lb)
                 if self.checking and not valid:
-                    logging.warn("number of rows of log binary constraint violated in %s, sl %d, %dth table: cont %.3f, binary %.3f, ub %.3f" % (mem, sl, order, cont, binary, ub))
+                    self.logger.warn("number of rows of log binary constraint violated in %s, sl %d, %dth table: cont %.3f, binary %.3f, ub %.3f" % (mem, sl, order, cont, binary, ub))
                     pass
 
                 pass
@@ -1075,15 +1171,11 @@ class FlexpipeIlpCompiler:
 
 
     def setLb(self):
+        """
+        Just initializes lower bounds on physical table sizes
+        to default values if necessary
+        """
         granLb = {}
-        # for mem in self.switch.memoryTypes:
-        #     if self.switch.depth[mem] == 1:
-        #         lb[mem] = 0.5
-        #         pass
-        #     else:
-        #         lb[mem] = 1
-        #         pass
-        #     pass
         granLb['ffu'] = 1
         granLb['mapper'] = 1
         granLb['bst'] = 1
@@ -1093,11 +1185,21 @@ class FlexpipeIlpCompiler:
             self.granLb = granLb
             pass
 
-        logging.info("Lower bounds on table sizes (by memory types): %s" % self.granLb)
+        self.logger.info("Lower bounds on table sizes (by memory types): %s" % self.granLb)
         pass
 
 
     def numberOfRowsBounds(self, model=None):
+        """
+        Enforces "minimum (physical) table size" constraint.
+        This helps us scale the ILP to handle FlexPipe
+        where legally a logical table can be assigned
+        any number of rows in each memory block (e.g., anywhere
+        from 1 to maxmimum rows availabl) but this leads to
+        a combinatorial explosion for ILP.
+        This constraint enforces that tables if assigned to a
+        block are assigned at least xx consecutive rows at a time.
+        """
         LB = 1
 
         memXSl = [(mem,sl)\
@@ -1114,7 +1216,7 @@ class FlexpipeIlpCompiler:
                 valid1 = self.newConstr(model[self.numberOfRows[mem]][index] <= M1 *  ifVar)
                 valid2 = self.newConstr(model[self.numberOfRows[mem]][index] >= LB - M2 * (1 - ifVar))
                 if self.checking and not (valid1 and valid2):
-                    logging.warn("number of rows bounds violated for %s, %d, %s: %.3f (%.3f)"%\
+                    self.logger.warn("number of rows bounds violated for %s, %d, %s: %.3f (%.3f)"%\
                                      (mem, sl1, log, model[self.numberOfRows[mem]][index], ifVar))
                     pass
                 pass
@@ -1193,9 +1295,9 @@ class FlexpipeIlpCompiler:
         self.dictNumConstraints['log'] += 2
         self.dictNumConstraints['log*st'] += 1
 
-        logging.info('getStartingAndEndingStages')
-        logging.info('added: %d' % totalCon)
-        logging.info('computed: %d' % self.computeSum({
+        self.logger.debug('getStartingAndEndingStages')
+        self.logger.debug('added: %d' % totalCon)
+        self.logger.debug('computed: %d' % self.computeSum({
             'log':4,'log*st':2}))
         pass
 
@@ -1240,7 +1342,7 @@ class FlexpipeIlpCompiler:
         #                      - (2 - model[self.numberOfRowsOfOrdBinary[mem]][nextOrd]\
         #                             - model[self.numberOfRowsOfOrdBinary[mem]][thisOrd]) * upperBound)
         if self.checking and not valid:
-            logging.warn("Overlap constraint violated in %s, sl %d, %dth overlaps %dth table: first row %.3f, number %.3f (%.3f), first row %.3f, number %.3f (%.3f)" %\
+            self.logger.warn("Overlap constraint violated in %s, sl %d, %dth overlaps %dth table: first row %.3f, number %.3f (%.3f), first row %.3f, number %.3f (%.3f)" %\
                              (mem, sl, order, order+1,\
                                    model[self.firstRowOfOrd[mem]][thisOrd], model[self.numberOfRowsOfOrd[mem]][thisOrd], model[self.numberOfRowsOfOrdBinary[mem]][thisOrd],\
                                   model[self.firstRowOfOrd[mem]][nextOrd], model[self.numberOfRowsOfOrd[mem]][nextOrd], model[self.numberOfRowsOfOrdBinary[mem]][nextOrd]))
@@ -1252,6 +1354,10 @@ class FlexpipeIlpCompiler:
         pass
     
     def wordLayoutConstraint(self, model=None):
+        """ Relate number of rows of a table per block to
+        number of blocks used and number of match entries (words)
+        assigned
+        """
         for mem in self.switch.memoryTypes:
             for st in range(self.stMax):
                 for log in range(self.logMax):
@@ -1290,7 +1396,7 @@ class FlexpipeIlpCompiler:
         valid = self.newConstr(numOrdersPerLog ==\
                              model[self.numberOfRowsOfLogBinary[mem]][self.iLSl(mem,log,sl)])
         if self.checking and not valid:
-            logging.warn("one order per log constraint violate in %s, %d, %s: %.3f orders, %.3f instances of log" %\
+            self.logger.warn("one order per log constraint violate in %s, %d, %s: %.3f orders, %.3f instances of log" %\
                              (mem, sl, self.program.names[log], numOrdersPerLog, model[self.numberOfRowsOfLogBinary[mem]][self.iLSl(mem,log,sl)]))
             pass
         self.testNumConstraints += 1
@@ -1309,7 +1415,7 @@ class FlexpipeIlpCompiler:
             upperBound = self.ub[mem]['blocks']*self.stMax
             for log in range(self.logMax):
                 totalBlocks = sum([model[self.blocks[mem]][self.iLSt(log, st)] for st in range(self.stMax)])
-                logging.debug("preprocess.use["+mem+"]["+self.program.names[log]+"]")
+                self.logger.debug("preprocess.use["+mem+"]["+self.program.names[log]+"]")
                 self.newConstr(totalBlocks\
                                      <= self.preprocess.use[mem][log]*upperBound)
                 self.testNumConstraints += 1
@@ -1326,7 +1432,7 @@ class FlexpipeIlpCompiler:
                                       for st in range(self.stMax)])
             valid = self.newConstr((allocatedWords >= self.program.logicalTables[log]))
             if self.checking and not valid:
-                logging.warn("assign. constraint violated for %s: has %.3f, needs %.3f"%\
+                self.logger.warn("assign. constraint violated for %s: has %.3f, needs %.3f"%\
                                  (self.program.names[log], allocatedWords,\
                                       self.program.logicalTables[log]))
                 pass
@@ -1402,15 +1508,6 @@ class FlexpipeIlpCompiler:
                                    [mem]][self.iOSl(mem, order, sl)])\
                                    for sl in range(sum(self.slMax[mem]))]))
             pass
-            """
-        for mem in self.switch.memoryTypes:
-            # block is used if first table has >0 rows
-            order = 0
-            usedBlocks[mem] = sum([self.numberOfRowsOfOrdBinary\
-                                       [mem][self.iOSl(mem, order, sl)]\
-                                       for sl in range(sum(self.slMax[mem]))])
-            pass
-            """
         self.results['ilpTotalUsedBlocks'] = sum([self.results['ilpUsedBlocks'+mem]\
                                                   for mem in self.switch.memoryTypes])
         self.results['ilpTime'] = self.m.getSolverTime()
@@ -1427,71 +1524,66 @@ class FlexpipeIlpCompiler:
 
 
     def solve(self, program, switch, preprocess):
+        """ Returns a configuration for program in switch, given some preprocessed information,
+        like packing unit sizes for different logical tables.
+        """
+
         self.setup(program, switch, preprocess)
 
-        logging.info("Computing variables:")
+        self.logger.debug("Computing variables:")
         self.numVariables = self.computeSum(self.dictNumVariables)
-        logging.info("alternatively counted constraints: %d" % self.testNumConstraints)
-        logging.info("Computing Constraints:")
+        self.logger.debug("alternatively counted constraints: %d" % self.testNumConstraints)
+        self.logger.debug("Computing Constraints:")
         self.numConstraints = self.computeSum(self.dictNumConstraints)
 
-        logging.debug("Starting with Greedy Solution as input")
+        self.logger.debug("Starting with Greedy Solution as input")
         model = self.variables
         obj = sum([model[self.totalBlocksBinary[mem]][st]\
                       for st in range(self.stMax)\
                       for mem in self.switch.memoryTypes])
 
-        # self.getTotalUsedBlocks(model=self.variables),\
-        # obj = self.numberOfRowsOfOrd['ffu'][self.iOSl('ffu', 0, 8 )]
-        # self.startingDict,\
         realVars = sorted([name for name in self.varType if self.varType[name] == 'real'])
-        logging.info("%d real vars: %s" % (len(realVars), realVars))
+        self.logger.debug("%d real vars: %s" % (len(realVars), realVars))
 
         boolVars = sorted([name for name in self.varType if self.varType[name] == int and self.varUb[name] == 1])
-        logging.info("%d bool vars: %s" % (len(boolVars), boolVars))
+        self.logger.debug("%d bool vars: %s" % (len(boolVars), boolVars))
 
         if (len(self.startingDict) == 0):
             self.startingDict = None
             pass
 
-        try:
-            self.m.saveModel("%s_model.lp"%self.outputFileName)
-        except Exception, e:
-            logging.exception(e)
+        if (self.outputFileName is not None and len(self.outputFileName) > 0):
+            try:
+                self.m.saveModel("%s_model.lp"%self.outputFileName)
+            except Exception, e:
+                self.logger.exception(e)
+                pass
             pass
 
 
         try:
+            # Note that we only need a feasible solution,
+            # so we specify objective as 0.
             self.m.minimize(obj * 0, starting_dict=self.startingDict, time_limit=self.timeLimit)
             pass
         except Exception, e:
             print e
-            logging.exception(e)
+            self.logger.exception(e)
             pass
 
-        if len(self.outputFileName) > 0:
-            logging.info("Saving param basis, conflict files (e.g., %s_basis.bas)"%self.outputFileName)
+        if self.outputFileName is not None and len(self.outputFileName) > 0:
+            self.logger.info("Saving param file (e.g., %s_param.prm)"%self.outputFileName)
             try:
                 self.m.saveParam("%s_param.prm"%self.outputFileName)
             except Exception, e:
-                logging.exception(e)
-                pass
-            try:
-                self.m.saveBasis("%s_basis.bas"%self.outputFileName)
-            except Exception, e:
-                logging.exception(e)
-                pass
-            try:
-                self.m.saveConflict("%s_conflict.lp"%self.outputFileName)
-            except Exception, e:
-                logging.exception(e)
+                self.logger.exception(e)
                 pass
             pass
         if not self.m.solved():
             return self.configs
 
         ####################################################
-        logging.debug("Saving results from ILP")
+        self.logger.debug("Saving results from ILP")
         self.setIlpResults()
 
         ####################################################
@@ -1500,6 +1592,8 @@ class FlexpipeIlpCompiler:
         m = self.m
         config = FlexpipeConfiguration(program=program, switch=switch,\
                                    preprocess=preprocess, version="ILP")
+
+        # Rounding up start row and number of rows from their real values.
         startRowDict = {}
         numberOfRowsDict = {}
         for mem in self.switch.memoryTypes:
@@ -1514,9 +1608,9 @@ class FlexpipeIlpCompiler:
                         startRowDict[mem][log,sl] = round(startRow[self.iLSl(mem, log, sl)], 3)
                         numberOfRowsDict[mem][log,sl] = round(numberOfRows[self.iLSl(mem, log,sl)], 3)
                         if (numberOfRows[self.iLSl(mem, log,sl)] > 0):
-                            logging.info("Rounded start row from %.3f to %d for %s, %s, %d" %\
+                            self.logger.debug("Rounded start row from %.3f to %d for %s, %s, %d" %\
                                 (startRow[self.iLSl(mem, log, sl)], startRowDict[mem][log,sl], mem, self.program.names[log], sl))
-                            logging.info("Rounded number of rows from %.3f to %d for %s, %s, %d" %\
+                            self.logger.debug("Rounded number of rows from %.3f to %d for %s, %s, %d" %\
                                 (numberOfRows[self.iLSl(mem, log, sl)], numberOfRowsDict[mem][log,sl], mem, self.program.names[log], sl))
                             pass
                     pass
@@ -1527,11 +1621,12 @@ class FlexpipeIlpCompiler:
         # JUST CHECKING IF ILP SOLUTION SATISFIES ITS OWN CONSTRAINTS
         ilpDict = {}
         self.fillModel(startRowDict, numberOfRowsDict, ilpDict)
-        logging.info("Checking ILP's solution")
-        self.checkSolution(model=ilpDict)
-
+        self.logger.info("Checking ILP's solution")
+        if (self.checkSolution(model=ilpDict)):
+            self.logger.info("Solution looks good.")
+            pass
         
         self.configs['ilpConfig'] = config
-        #        logging.info(self.results)
+        #        self.logger.info(self.results)
         return self.configs
 
