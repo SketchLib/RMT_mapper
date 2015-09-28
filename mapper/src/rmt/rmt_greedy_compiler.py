@@ -340,7 +340,7 @@ class RmtGreedyCompiler:
         self.logger.debug("self.preprocess.use['sram'] %s" % str(self.preprocess.use['sram']))
         for mem in self.preprocess.use:
             if self.preprocess.use[mem][tableIndex] == 1\
-                    and mem in self.switch.numSlices:
+                    and mem in self.switch.numBlocks:
                 validMems.append(mem)
                 pass
             pass
@@ -588,7 +588,7 @@ class RmtGreedyCompiler:
 
             if mem not in self.switch.memoryTypes:
                 continue
-            self.blocksPerSt[mem] = self.switch.numSlices[mem][0]
+            self.blocksPerSt[mem] = self.switch.numBlocks[mem][0]
             self.numBlocks[mem] = self.blocksPerSt[mem] * stMax
             self.inputCrossbar[mem] = [0] * stMax
             self.actionCrossbar[mem] = [0] * stMax

@@ -477,7 +477,7 @@ class RmtConfiguration:
 
             ax = subplots[mem]
             rect[mem] = [[] for log in range(self.program.MaximumLogicalTables)]
-            maxY = self.switch.depth[mem] * self.switch.numSlices[mem][0]
+            maxY = self.switch.depth[mem] * self.switch.numBlocks[mem][0]
             minY = 0
             minX = 0
             maxX = self.switch.width[mem] * self.switch.numStages
@@ -736,7 +736,7 @@ class RmtConfiguration:
                                   for st in range(self.stMax)\
                                   for thing in self.switch.typesIn[mem]])
 
-            totalBlocks = sum(self.switch.numSlices[mem])
+            totalBlocks = sum(self.switch.numBlocks[mem])
             self.logger.info("(%s) %d Total %ss used (%.1f pc)" %\
                              (self.version, usedBlocks, mem.upper(),\
                                   round((100.0 * usedBlocks)/totalBlocks)))
@@ -750,7 +750,7 @@ class RmtConfiguration:
                                       for log in range(self.logMax)\
                                       for thing in self.switch.typesIn[mem]])
 
-                totalBlocks = self.switch.numSlices[mem][st]
+                totalBlocks = self.switch.numBlocks[mem][st]
                 numTables = sum([1 for log in range(self.logMax)\
                                           if self.blocks[st][log][mem] > 0])
 

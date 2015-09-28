@@ -146,7 +146,7 @@ class RmtIlpCompiler:
         # tcam match entries ('tcam') is the only thing that uses TCAM
         for mem in self.switch.memoryTypes:
             self.m.constrain(self.block[mem].T * np.ones(self.logMax)\
-                                 <= self.switch.numSlices[mem])
+                                 <= self.switch.numBlocks[mem])
             pass
         self.dictNumConstraints['mem*st'] += 1
 
@@ -154,7 +154,7 @@ class RmtIlpCompiler:
         mem = 'sram'
         self.m.constrain(sum([self.block[thing].T for thing in self.switch.typesIn[mem]])
                              * np.ones(self.logMax)\
-                                 <= self.switch.numSlices[mem])
+                                 <= self.switch.numBlocks[mem])
         self.dictNumConstraints['st'] += 1
         pass
 
@@ -657,7 +657,7 @@ class RmtIlpCompiler:
     def getBlockBinary(self):
         lowerBound = 1
         for mem in self.switch.memoryTypes:
-            upperBound = sum(self.switch.numSlices[mem])
+            upperBound = sum(self.switch.numBlocks[mem])
             for log in range(self.logMax):
                 for st in range(self.stMax):
                     self.m.constrain(self.blockBin[mem][log,st]*lowerBound <=\
@@ -731,7 +731,7 @@ class RmtIlpCompiler:
 
     def getBlockAllMemBinary(self):
         lowerBound = 1
-        upperBound = sum([self.switch.numSlices[mem] for mem in\
+        upperBound = sum([self.switch.numBlocks[mem] for mem in\
                               self.switch.memoryTypes])
         for log in range(self.logMax):
             for st in range(self.stMax):
@@ -1070,7 +1070,7 @@ class RmtIlpCompiler:
         logMax = program.MaximumLogicalTables
 
         # upper bound on blocks for a table in a stage
-        blockMax = int(sum([np.matrix(switch.numSlices[mem]).T\
+        blockMax = int(sum([np.matrix(switch.numBlocks[mem]).T\
                                 for mem in switch.memoryTypes])[0,0])
 
         # upper bound on logical words for a table in a stage
@@ -1277,7 +1277,7 @@ class RmtIlpCompiler:
         if self.objectiveStr == 'totalBlocks':
             self.logger.info("Total blocks objective includes action RAMs, though stage/ latency vars don't")
             pass
-        totalBlocksAvailable = sum(sum(([self.switch.numSlices[mem] for mem in self.switch.memoryTypes])))
+        totalBlocksAvailable = sum(sum(([self.switch.numBlocks[mem] for mem in self.switch.memoryTypes])))
         objectives = {'pipelineLatency+totalBlocks':pipelineLatency/maximumLatency + totalBlocks/totalBlocksAvailable,\
                           'pipelineLatency':pipelineLatency,\
                           'totalBlocks':totalBlocks,\

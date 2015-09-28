@@ -31,7 +31,7 @@ class RmtSwitch:
     """
 
     
-    def __init__(self,  numSlices = {'sram':106, 'tcam':16},\
+    def __init__(self,  numBlocks = {'sram':106, 'tcam':16},\
                      depth = {'sram':1000, 'tcam':2000},\
                      width = {'sram':80, 'tcam':40},\
                      numStages = 32,\
@@ -60,21 +60,21 @@ class RmtSwitch:
         self.logger.info("Match type: %s" % self.matchType)
 
         for mem in self.memoryTypes:
-            if type(numSlices) == list and\
-                    len(numSlices[mem]) != numStages:
-                self.logger.info("Invalid blocks/ slices per stage")
+            if type(numBlocks) == list and\
+                    len(numBlocks[mem]) != numStages:
+                self.logger.info("Invalid blocks per stage")
                 return
             pass
-        self.numSlices = {}
+        self.numBlocks = {}
         for mem in self.memoryTypes:
-            if type(numSlices[mem]) == int:
-                self.numSlices[mem] = numSlices[mem] * np.ones(numStages)
+            if type(numBlocks[mem]) == int:
+                self.numBlocks[mem] = numBlocks[mem] * np.ones(numStages)
             else:
-                self.numSlices[mem] = numSlices[mem]
+                self.numBlocks[mem] = numBlocks[mem]
                 pass
             pass
         self.logger.info("Number of blocks: %s" %\
-                         str([(mem, self.numSlices[mem][0]) for mem in\
+                         str([(mem, self.numBlocks[mem][0]) for mem in\
                                   self.memoryTypes]))
 
         self.toposortOrderStages = toposortOrder
