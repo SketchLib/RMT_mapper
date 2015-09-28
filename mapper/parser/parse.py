@@ -8,7 +8,7 @@ def getRmtSwitch(d):
         matchType = d['matchType']
         pass
 
-    switch = RmtSwitch(numSlices = d['numSlices'], depth = d['depth'], width = d['width'],\
+    switch = RmtSwitch(numBlocks = d['numSlices'], depth = d['depth'], width = d['width'],\
                            numStages = d['numStages'],\
                            inputCrossbarNumSubunits = d['inputCrossbarNumSubunits'],\
                            inputCrossbarWidthSubunit=d['inputCrossbarWidthSubunit'],\
@@ -122,7 +122,7 @@ def getRmtPreprocess(d):
 def getFlexpipeSwitch(d):
     from src.flexpipe.flexpipe_switch import FlexpipeSwitch
     # try catch key not in dict
-    switch = FlexpipeSwitch(numSlices = d['numSlices'], depth = d['depth'], width = d['width'], order = d['order'], maxTablesPerSlice = d['maxTablesPerSlice'])
+    switch = FlexpipeSwitch(numSlices = d['numSlices'], depth = d['depth'], width = d['width'], order = d['order'], maxTablesPerBlock = d['maxTablesPerSlice'])
     return switch
 
 def getProgramDdSmall(d):
