@@ -44,6 +44,10 @@ Compiling DdSmall (smaller version of L2L3Simple) to FlexPipe using heuristic-
 
 python tdg-compile.py -c FlexpipeLptCompiler -p ProgramDdSmall -s FlexpipeReal -r FlexpipePreprocess --log_level INFO
 
+Compiling DdSmall (smaller version of L2L3Simple) to FlexPipe using ILP-
+
+python tdg-compile.py -c FlexpipeIlpCompiler -p ProgramDdSmall -s FlexpipeReal -r FlexpipePreprocess --log_level INFO
+
 Compiling a P4 program /Users/lav/p4factory/targets/dc_example/p4src/dc_example.p4 to RMT using FFD heuristic
 
 python p4-compile.py -p /Users/lav/p4factory/targets/dc_example/p4src/dc_example.p4 -c RmtFfdCompiler-16  -s RmtReal32 -r RmtPreprocess
