@@ -930,14 +930,15 @@ class FlexpipeIlpCompiler:
             self.fillModel(greedyCompiler.startRowDict,\
                                greedyCompiler.numberOfRowsDict,\
                                self.startingDict)
-            self.logger.info("Checking greedy's solution")
-            self.logger.info("Note that because of constraint on min. number of"\
-             + " rows per table, greedy's solution won't necessarily"\
-             + " satisfy more constrained ILP, even if its valid.")
-            if (self.checkSolution(model=self.startingDict)):
-                self.logger.info("Solution looks good.")
+            if (self.results['greedySolved']):
+                self.logger.info("Checking greedy's solution")
+                self.logger.info("Note that because of constraint on min. number of"\
+                + " rows per table, greedy's solution won't necessarily"\
+                + " satisfy more constrained ILP, even if its valid.")
+                if (self.checkSolution(model=self.startingDict)):
+                    self.logger.info("Solution looks good.")
+                    pass
                 pass
-
             for mem in self.switch.memoryTypes:
                 order = 0
                 self.results['greedyUsedBlocks'+mem] =\
@@ -1559,7 +1560,6 @@ class FlexpipeIlpCompiler:
                 self.logger.exception(e)
                 pass
             pass
-
 
         try:
             # Note that we only need a feasible solution,

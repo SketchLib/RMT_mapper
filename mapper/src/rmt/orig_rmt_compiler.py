@@ -1282,9 +1282,11 @@ class RmtIlpCompiler:
                                           layout=greedyCompiler.layout,\
                                           word=greedyCompiler.word,\
                                           startTimeOfStage=greedyConfig.getStartTimeOfStage())
-            self.logger.info("Checking greedy solution.")
-            if self.checkConstraints(self.startingDict):
-                self.logger.info("Solution looks good.")
+            if self.results['greedySolved']:
+                self.logger.info("Checking greedy solution.")
+                if self.checkConstraints(self.startingDict):
+                    self.logger.info("Solution looks good.")
+                    pass
                 pass
             pass
 
@@ -1332,6 +1334,7 @@ class RmtIlpCompiler:
         self.numConstraints = self.computeSum(self.dictNumConstraints)
         self.logger.debug("numRows: %d" % self.m.getNRows())
         self.logger.debug("numCols: %d" % self.m.getNCols())
+
         # FIND WHAT THE MINIMUM VALUE FOR OBJECTIVE STR IS
         try:
             self.m.minimize(objectives[self.objectiveStr], starting_dict=self.startingDict,\
@@ -1344,11 +1347,13 @@ class RmtIlpCompiler:
         except Exception, e:
             self.logger.exception(e)
             pass
-        self.logger.info("Checking ILP solution")
-        if (self.checkConstraints(self.m)):
-            self.logger.info("Solution looks good.")
-            pass
 
+        if (self.m.solved()):
+            self.logger.info("Checking ILP solution")
+            if (self.checkConstraints(self.m)):
+                self.logger.info("Solution looks good.")
+                pass
+            pass
         solverTimes.append(self.m.getSolverTime())
         nIterations.append(self.m.getNIterations())
         """
@@ -1384,16 +1389,19 @@ class RmtIlpCompiler:
         ####################################################
         # Logging
         ####################################################                
-        m = self.m
-        layout = {}
-        for thing in self.switch.allTypes:
-            layout[thing] = m[self.layout[thing]]
-            pass
-        config = RmtConfiguration(program=self.program, switch=self.switch, preprocess=self.preprocess,\
+        if (self.m.solved()):
+            m = self.m
+            layout = {}
+            for thing in self.switch.allTypes:
+                layout[thing] = m[self.layout[thing]]
+                pass
+            config = RmtConfiguration(program=self.program, switch=self.switch, preprocess=self.preprocess,\
                                       layout=layout, version="ILP")
-        self.results['ilpTotalUnassignedWordsFromConfig'] = config.totalUnassignedWords
-        self.results['ilpPipelineLatencyFromConfig'] = config.getPipelineLatency()
-        self.results['ilpPowerFromConfig'] = config.getPowerForRamsAndTcams()
+            configs['ilp-%s' % self.objectiveStr] = config
+            self.results['ilpTotalUnassignedWordsFromConfig'] = config.totalUnassignedWords
+            self.results['ilpPipelineLatencyFromConfig'] = config.getPipelineLatency()
+            self.results['ilpPowerFromConfig'] = config.getPowerForRamsAndTcams()
+            pass
         solveEnd = time.time()
         self.results['solveTime'] = solveEnd - solveStart
 
@@ -1401,18 +1409,10 @@ class RmtIlpCompiler:
         #self.logger.debug("Displaying ILP solution")
         #config.display()
         ####################################################
-        configs['ilp-%s' % self.objectiveStr] = config
         return configs
 
     def setIlpResults(self, solverTimes, nIterations):
-        totalMemBlocks = sum([self.m[self.block[mem]].T for mem in self.switch.allTypes])
-        totalBlocks = int(round(sum([totalMemBlocks[st,log] for log in range(self.logMax)\
-                                         for st in range(self.stMax)])))
-        self.results['ilpTotalBlocks'] = totalBlocks
-        self.results['ilpNumActiveSrams'] = float(self.m[self.numActiveSrams])
-        self.results['ilpNumActiveTcams'] = float(self.m[self.numActiveTcams])
-        self.results['ilpPower'] = float(self.m[self.powerForRamsAndTcams])
-        self.results['ilpPipelineLatency'] = self.m[self.startTimeOfStage][self.stMax-1]
+
         self.results['ilpTime'] = sum(solverTimes) 
         self.results['ilpNumIterations'] = sum(nIterations) 
         self.results['ilpTimeList'] = ("%s" % solverTimes).replace(",",";")
@@ -1427,19 +1427,29 @@ class RmtIlpCompiler:
         self.results["ilpCutoff"] = self.m.getCutoff()
         self.results["ilpMIPRelativeGap"] = self.m.getMIPRelativeGap()
         self.results["ilpNnodes"] = self.m.getNnodes()
-
-        totalBlocks = np.zeros((self.stMax))
-        for st in range(self.stMax):
-            totalBlocks[st] = sum([self.m[self.block[mem]][log,st]\
-                                   for log in range(self.logMax)\
-                                   for mem in self.all])
-        pass
-        self.results['ilpNumStages'] = max([st for st in range(self.stMax) if\
-                                       totalBlocks[st] > 0])+1
         self.results['ilpNumVariables'] = self.numVariables
         self.results['ilpNumConstraints'] = self.numConstraints
+        self.results['ilpSolved'] = self.m.solved()
+        if self.m.solved():
+            totalMemBlocks = sum([self.m[self.block[mem]].T for mem in self.switch.allTypes])
+            totalBlocks = int(round(sum([totalMemBlocks[st,log] for log in range(self.logMax)\
+                                         for st in range(self.stMax)])))
+            self.results['ilpTotalBlocks'] = totalBlocks
+            self.results['ilpNumActiveSrams'] = float(self.m[self.numActiveSrams])
+            self.results['ilpNumActiveTcams'] = float(self.m[self.numActiveTcams])
+            self.results['ilpPower'] = float(self.m[self.powerForRamsAndTcams])
+            self.results['ilpPipelineLatency'] = self.m[self.startTimeOfStage][self.stMax-1]
+
+            totalBlocks = np.zeros((self.stMax))
+            for st in range(self.stMax):
+                totalBlocks[st] = sum([self.m[self.block[mem]][log,st]\
+                                    for log in range(self.logMax)\
+                                    for mem in self.all])
+            pass
+            self.results['ilpNumStages'] = max([st for st in range(self.stMax) if\
+                                        totalBlocks[st] > 0])+1
+            pass
         pass
-        
     
 
     def checkConstraints(self,model):
