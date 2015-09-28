@@ -5,3 +5,6 @@ type='FlexpipeLptCompiler', key='FlexpipeLptCompiler'
 type='FlexpipeIlpCompiler', key='FlexpipeIlpCompilerLpt', granLb={'mapper':1;'ffu':500;'bst':500;'hashtable':500}, greedyVersion='lpt'
 type='FlexpipeIlpCompiler', key='FlexpipeIlpCompiler', granLb={'mapper':1;'ffu':500;'bst':500;'hashtable':500}
 type='FlexpipeIlpCompiler', key='FlexpipeIlpCompilerFine', granLb={'mapper':1;'ffu':100;'bst':500;'hashtable':500}
+type='RmtIlpCompiler', key='RmtIlpCompilerFfl-020', relativeGap=0.2, greedyVersion='ffl-0'
+type='RmtIlpCompiler', key='RmtIlpCompilerFfd-020', relativeGap=0.2, greedyVersion='ffd-0'
+type='RmtIlpCompiler', key='RmtIlpCompiler-020', relativeGap=0.2
