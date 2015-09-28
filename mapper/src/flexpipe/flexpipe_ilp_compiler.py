@@ -6,56 +6,20 @@ import numpy as np
 from datetime import datetime
 import time
 import logging
-"""
-Assign number of blocks for each layout, compute number
-of logical words from blocks.
-"""
-use_ilp = True # When False, solves LP.
 
 class FlexpipeIlpCompiler:
-    def __init__(self, relativeGap=None,\
-                     epagap = None,\
+    def __init__(self,\
                      greedyVersion = None,\
-                     touches=False,\
-                     emphasis=None,\
-                     populateLimit = None,\
-                     solnpoolintensity = None,\
-                     treeLimit=None,\
-                     timeLimit=None,\
-                     variableSelect=None,\
-                     workMem=None,\
-                     nodeFileInd=None,\
-                     workDir=None,\
+                     timeLimit = None,\
                      outputFileName=None,\
-                     writeLevel = None,\
-                     mipstartFile = None,\
-                     granMem = None,\
                      granLb = None):
 
         
-        # Additional constraints for top-most
-        self.touches = touches
-        self.granMem = granMem
         self.granLb = granLb
 
-        self.emphasis = emphasis
-        self.populateLimit = populateLimit
-        self.solnpoolintensity = solnpoolintensity
-        self.relativeGap = relativeGap
-        self.epagap = epagap
         self.greedyVersion = greedyVersion
-        self.treeLimit= treeLimit
         self.timeLimit = timeLimit
-        self.variableSelect = variableSelect
-    
-        self.workMem = workMem
-        self.nodeFileInd = nodeFileInd
-        self.workDir = workDir
-        logging.info("workDir: %s" % self.workDir)
-        self.writeLevel = writeLevel
-        self.mipstartFile = mipstartFile
-        logging.info("mipstartFile: %s" % self.mipstartFile)
-        self.outputFileName=outputFileName
+        self.outputFileName = outputFileName
         self.checking = False
         # allSl: maxslMax, sl: per mem per stage?,
         # slPerMem: all blocks of mem across stages
@@ -85,8 +49,6 @@ class FlexpipeIlpCompiler:
         self.varUb = {}
         self.varLb = {}
         self.varType = {}
-
-        self.gran = {}
         pass
 
     def iOSl(self, mem, order, sl):
@@ -276,13 +238,7 @@ class FlexpipeIlpCompiler:
             startRowTimesNumberOfRowsBinary = np.zeros((self.logMax, sum(self.slMax[mem])), dtype=np.float64)
             for log in range(self.logMax):
                 for sl1 in range(sum(self.slMax[mem])):
-                    if self.gran[mem] == None:
-                        gr = 1
-                        pass
-                    else:
-                        gr = self.gran[mem]
-                        pass
-                    startRowUnit[log,sl1] = startRowDict[mem][log,sl1]/float(gr)
+                    startRowUnit[log,sl1] = startRowDict[mem][log,sl1]
 
                     if not numberOfRowsDict[mem][log,sl1] <= 0:
                         numberOfRowsBound[log,sl1] = 1
@@ -292,7 +248,7 @@ class FlexpipeIlpCompiler:
                         pass
                         
                     if numberOfRowsDict[mem][log,sl1] >= LB/2.0:
-                        numberOfRowsUnit[log,sl1] = numberOfRowsDict[mem][log,sl1]/float(gr)
+                        numberOfRowsUnit[log,sl1] = numberOfRowsDict[mem][log,sl1]
                         numberOfRowsBinary[log,sl1] = 1
                         startRowTimesNumberOfRowsBinary[log,sl1] = startRowDict[mem][log,sl1]
                         pass
@@ -507,9 +463,6 @@ class FlexpipeIlpCompiler:
         self.setupStartAndEndStagesVariables()
         self.setLb()
 
-        if self.touches:
-            #self.setupTouchesTableBeforeVariables()
-            pass
         self.setupConstraints(model=self.variables)
 
         self.setupStartingDict()
@@ -529,16 +482,6 @@ class FlexpipeIlpCompiler:
         # Then ['FFU'][0..11] are blocks in St 0, ['FFU'][12..23] in St 1
         # ['BST'][0..3] are blocks in St 1 etc.
         # Can use switch.numBlocks[mem][st] to figure out index.
-
-        gran = {}
-        for mem in switch.memoryTypes:
-            if mem == 'mapper':
-                gran[mem] = 32
-                pass
-            else:
-                gran[mem] = self.granMem
-                pass
-            pass
 
         stMax = switch.numStages
         logMax = program.MaximumLogicalTables
@@ -566,7 +509,6 @@ class FlexpipeIlpCompiler:
         # Each block can have up to orderMax tables, could depend on mem, st.
         orderMax = self.switch.maxTablesPerBlock
         logging.debug("orderMax: " + str(orderMax))
-        self.gran = gran
         self.orderMax = orderMax
         self.stMax = stMax
         self.slMax = slMax
@@ -582,7 +524,6 @@ class FlexpipeIlpCompiler:
         ####################################################
         self.results = {}
 
-        self.results['relativeGap'] = self.relativeGap
         self.results['greedyVersion'] = self.greedyVersion
         self.results['stMax'] = switch.numStages
 
@@ -815,20 +756,9 @@ class FlexpipeIlpCompiler:
         # GET VARIABLES THAT DEPEND ON startRow, numberOfRows, ordToLog
        
         self.setupConstraintsForProductsAndBinarys(model=model)
-        if self.touches:
-            #self.setupTouchesTableBeforeConstraints(model=model)
-            pass
 
         self.getStartingAndEndingStages(model=model) # tested
         
-        if self.granMem == None:
-            logging.info("No granularity of row contraints")
-            pass
-        else:
-            logging.info("Granularity 32 for mapper, %s for other" % self.granMem)
-            self.startRowMultipleConstraint(model=model)
-            pass
-
         # Get blocks and words from numberOfRows variables
         self.wordLayoutConstraint(model=model)
 
@@ -882,39 +812,6 @@ class FlexpipeIlpCompiler:
         self.useMemoryConstraint(model=model)
         pass
 
-    def startRowMultipleConstraint(self, model=None):
-        memXSl = [(mem,sl) for mem in self.switch.memoryTypes\
-                      for st in range(self.stMax)\
-                      for sl in self.blocksInStage(mem,st)]
-        for mem,sl in memXSl:
-            for log in range(self.logMax):
-                index = self.iLSl(mem,log,sl)
-
-                valid = self.newConstr(model[self.startRow[mem]][index]\
-                                     == model[self.startRowUnit[mem]][index]\
-                                     * self.gran[mem])
-
-                if self.checking and not valid:
-                    logging.info("start row [%s] [log=%s, sl=%d] is %d, startRow Unit is %d" %\
-                                     (mem, self.program.names[log], sl, model[self.startRow[mem]][index],\
-                                          model[self.startRowUnit[mem]][index]))
-                    pass
-
-
-                valid = self.newConstr(model[self.numberOfRows[mem]][index]\
-                                     == model[self.numberOfRowsUnit[mem]][index]\
-                                     * self.gran[mem])
-
-                if self.checking and not valid:
-                    logging.info("numberOfRows [%s] [log=%s, sl=%d] is %d, numberOfRowsUnit is %d" %\
-                                     (mem, self.program.names[log], sl, model[self.numberOfRows[mem]][index],\
-                                          model[self.numberOfRowsUnit[mem]][index]))
-                    pass
-
-                pass
-            pass
-        pass
-
     def setupStartingDict(self):
         self.startingDict = {}
         
@@ -944,10 +841,10 @@ class FlexpipeIlpCompiler:
             self.fillModel(greedyCompiler.startRowDict,\
                                greedyCompiler.numberOfRowsDict,\
                                self.startingDict)
-            if self.touches:
-                #self.getTouchesStartingDictValues(model=self.startingDict)
-                pass
             logging.info("Checking greedy's solution")
+            # Note that because of constraint on min. number of
+            # rows table, greedy's solution won't necessarily
+            # satisfy more constrained ILP, even if its valid.
             self.checkSolution(model=self.startingDict)
 
             for mem in self.switch.memoryTypes:
@@ -1553,13 +1450,8 @@ class FlexpipeIlpCompiler:
         boolVars = sorted([name for name in self.varType if self.varType[name] == int and self.varUb[name] == 1])
         logging.info("%d bool vars: %s" % (len(boolVars), boolVars))
 
-        #
-        if self.mipstartFile == None:
-            if len(self.startingDict) == 0:
-               self.startingDict = None
-            else:               
-               mipStartFile = "%s_greedy_mipstart.mst"%self.outputFileName
-               self.m.set_starting_dict(self.startingDict, mipStartFile)
+        if (len(self.startingDict) == 0):
+            self.startingDict = None
             pass
 
         try:
@@ -1570,24 +1462,7 @@ class FlexpipeIlpCompiler:
 
 
         try:
-            self.m.minimize(obj * 0)
-            # self.m.minimize_populate(obj,\
-            #                     starting_dict=None,\
-            #                     relative_gap=self.relativeGap,\
-            #                     epagap = self.epagap,\
-            #                     emphasis=self.emphasis,\
-            #                     populate_limit=self.populateLimit,\
-            #                     solnpoolintensity=self.solnpoolintensity,\
-            #                     tree_limit=self.treeLimit,\
-            #                     time_limit=self.timeLimit,\
-            #                     variable_select=self.variableSelect,\
-            #                     work_mem=self.workMem,\
-            #                     node_file_ind=self.nodeFileInd,\
-            #                     work_dir=self.workDir,\
-            #                     conflict_display = 2,\
-            #                     write_level = self.writeLevel,
-            #                     to_mipstart_file=None,
-            #                     mipstart_file = self.mipstartFile)
+            self.m.minimize(obj * 0, starting_dict=self.startingDict, time_limit=self.timeLimit)
             pass
         except Exception, e:
             print e
@@ -1652,9 +1527,6 @@ class FlexpipeIlpCompiler:
         # JUST CHECKING IF ILP SOLUTION SATISFIES ITS OWN CONSTRAINTS
         ilpDict = {}
         self.fillModel(startRowDict, numberOfRowsDict, ilpDict)
-        if self.touches:
-            #self.getTouchesStartingDictValues(model=ilpDict)
-            pass
         logging.info("Checking ILP's solution")
         self.checkSolution(model=ilpDict)
 

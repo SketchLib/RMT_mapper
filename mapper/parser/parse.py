@@ -142,9 +142,7 @@ def getProgramDdMtagSmall(d):
 
 def getFlexpipeIlpCompiler(d):
     from src.flexpipe.flexpipe_ilp_compiler import FlexpipeIlpCompiler
-    for k in ['timeLimit','treeLimit','emphasis','variableSelect',\
-                  'workMem', 'nodeFileInd', 'workDir', 'outputFileName', 'writeLevel','relativeGap', 'epagap', 'solnpoolintensity','populateLimit', 'granMem',\
-                  'granLb']:
+    for k in ['outputFileName', 'granLb', 'timeLimit']:
         if k not in d:
             d[k] = None
             pass
@@ -153,21 +151,9 @@ def getFlexpipeIlpCompiler(d):
     if 'greedyVersion' not in d:
         d['greedyVersion'] = ""
         pass
-    compiler = FlexpipeIlpCompiler(relativeGap=d['relativeGap'],\
-                                  epagap = d['epagap'],\
-                                       greedyVersion=d['greedyVersion'],\
+    compiler = FlexpipeIlpCompiler(greedyVersion=d['greedyVersion'],\
                                        timeLimit=d['timeLimit'],\
-                                       treeLimit=d['treeLimit'],\
-                                       emphasis=d['emphasis'],\
-                                       populateLimit = d['populateLimit'],\
-                                  solnpoolintensity = d['solnpoolintensity'],\
-                                       variableSelect=d['variableSelect'],\
-                                       workMem=d['workMem'],\
-                                       nodeFileInd=d['nodeFileInd'],\
-                                       workDir=d['workDir'],\
                                        outputFileName=d['outputFileName'],\
-                                       writeLevel=d['writeLevel'],\
-                                       granMem=d['granMem'],\
                                                granLb=d['granLb'])
     return compiler
 
