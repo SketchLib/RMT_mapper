@@ -81,13 +81,10 @@ def getRmtIlpCompiler(d):
         d['greedyVersion'] = ""
         pass
     compiler = RmtIlpCompiler(relativeGap=d['relativeGap'],\
-                                  epagap = d['epagap'],\
                                   greedyVersion=d['greedyVersion'],\
                                   timeLimit=d['timeLimit'],\
                                   treeLimit=d['treeLimit'],\
                                   emphasis=d['emphasis'],\
-                                  populateLimit = d['populateLimit'],\
-                                  solnpoolintensity = d['solnpoolintensity'],\
                                   variableSelect=d['variableSelect'],\
                                   workMem=d['workMem'],\
                                   nodeFileInd=d['nodeFileInd'],\
