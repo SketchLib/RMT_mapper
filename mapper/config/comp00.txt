@@ -2,3 +2,6 @@ type='RmtFfdCompiler', key='RmtFfdCompiler-16', numSramBlocksReserved=16
 type='RmtFflCompiler', key='RmtFflCompiler-16', numSramBlocksReserved=16
 type='RmtFflsCompiler', key='RmtFflsCompiler-16', numSramBlocksReserved=16
 type='FlexpipeLptCompiler', key='FlexpipeLptCompiler'
+type='FlexpipeIlpCompiler', key='FlexpipeIlpCompilerLpt', emphasis=1, variableSelect=-1, workMem=32, nodeFileInd=3, workDir="/home/ubuntu/mapper/tmp", epagap=10, solnpoolintensity=2, populateLimit=1, granLb={'mapper':1;'ffu':500;'bst':500;'hashtable':500}, greedyVersion='lpt'
+type='FlexpipeIlpCompiler', key='FlexpipeIlpCompiler', emphasis=1, variableSelect=-1, workMem=32, nodeFileInd=3, workDir="/home/ubuntu/mapper/tmp", epagap=10, solnpoolintensity=2, populateLimit=1, granLb={'mapper':1;'ffu':500;'bst':500;'hashtable':500}
+type='FlexpipeIlpCompiler', key='FlexpipeIlpCompilerFine', emphasis=1, variableSelect=-1, workMem=32, nodeFileInd=3, workDir="/home/ubuntu/mapper/tmp", epagap=10, solnpoolintensity=2, populateLimit=1, granLb={'mapper':1;'ffu':100;'bst':500;'hashtable':500}

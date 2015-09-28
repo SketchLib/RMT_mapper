@@ -140,41 +140,11 @@ def getProgramDdMtagSmall(d):
     program = ProgramDdMtagSmall(numberOfEntriesDict=d['numberOfEntriesDict'])
     return program.program
 
-def getRealOkayFlexpipeIlpCompiler(d):
-    from src.flexpipe.realOkay_ilp import RealOkayFlexpipeIlpCompiler
+def getFlexpipeIlpCompiler(d):
+    from src.flexpipe.flexpipe_ilp_compiler import FlexpipeIlpCompiler
     for k in ['timeLimit','treeLimit','emphasis','variableSelect',\
                   'workMem', 'nodeFileInd', 'workDir', 'outputFileName', 'writeLevel','relativeGap', 'epagap', 'solnpoolintensity','populateLimit', 'granMem',\
                   'granLb']:
-        if k not in d:
-            d[k] = None
-            pass
-        pass
-
-    if 'greedyVersion' not in d:
-        d['greedyVersion'] = ""
-        pass
-    compiler = RealOkayFlexpipeIlpCompiler(relativeGap=d['relativeGap'],\
-                                  epagap = d['epagap'],\
-                                       greedyVersion=d['greedyVersion'],\
-                                       timeLimit=d['timeLimit'],\
-                                       treeLimit=d['treeLimit'],\
-                                       emphasis=d['emphasis'],\
-                                       populateLimit = d['populateLimit'],\
-                                  solnpoolintensity = d['solnpoolintensity'],\
-                                       variableSelect=d['variableSelect'],\
-                                       workMem=d['workMem'],\
-                                       nodeFileInd=d['nodeFileInd'],\
-                                       workDir=d['workDir'],\
-                                       outputFileName=d['outputFileName'],\
-                                       writeLevel=d['writeLevel'],\
-                                       granMem=d['granMem'],\
-                                               granLb=d['granLb'])
-    return compiler
-
-def getFlexpipeIlpCompiler(d):
-    from src.flexpipe.orig_flexpipe_compiler import FlexpipeIlpCompiler
-    for k in ['timeLimit','treeLimit','emphasis','variableSelect',\
-                  'workMem', 'nodeFileInd', 'workDir', 'outputFileName', 'writeLevel','relativeGap', 'epagap', 'solnpoolintensity','populateLimit', 'granMem']:
         if k not in d:
             d[k] = None
             pass
@@ -197,7 +167,8 @@ def getFlexpipeIlpCompiler(d):
                                        workDir=d['workDir'],\
                                        outputFileName=d['outputFileName'],\
                                        writeLevel=d['writeLevel'],\
-                                       granMem=d['granMem'])
+                                       granMem=d['granMem'],\
+                                               granLb=d['granLb'])
     return compiler
 
 def getFlexpipeLptCompiler(d):
@@ -261,7 +232,6 @@ def getModuleFromStringDict(sd):
                     'RmtPreprocess':getRmtPreprocess,\
                     'FlexpipeLptCompiler':getFlexpipeLptCompiler,\
                     'FlexpipeIlpCompiler':getFlexpipeIlpCompiler,\
-                    'RealOkayFlexpipeIlpCompiler':getRealOkayFlexpipeIlpCompiler,\
                     'FlexpipePreprocess':getFlexpipePreprocess,
                     'FlexpipeSwitch':getFlexpipeSwitch,\
                     'ProgramDdSmall':getProgramDdSmall,\
