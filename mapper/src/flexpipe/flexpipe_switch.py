@@ -28,23 +28,23 @@ import numpy as np
 Intel FlexPipe switch.
 """
 
-numSlices = {'mapper':[2,0,0,0],'ffu':[0,12,12,0], 'bst':[0,0,4,0],'hashtable':[0,0,0,4]}
+numBlocks = {'mapper':[2,0,0,0],'ffu':[0,12,12,0], 'bst':[0,0,4,0],'hashtable':[0,0,0,4]}
 order = [0,1,2,3]
-maxTablesPerSlice = 4
+maxTablesPerBlock = 4
 depth = {'mapper':64, 'ffu':1000,'bst':16000, 'hashtable':16000}
 width = {'mapper':48, 'ffu':36,'bst':36, 'hashtable':72}
 class FlexpipeSwitch:
-    def __init__(self, numSlices=numSlices, order=order, maxTablesPerSlice=maxTablesPerSlice, depth=depth, width=width):
+    def __init__(self, numBlocks=numBlocks, order=order, maxTablesPerBlock=maxTablesPerBlock, depth=depth, width=width):
         self.logger = logging.getLogger(__name__)
 
-        memoryTypes = numSlices.keys()
+        memoryTypes = numBlocks.keys()
         self.memoryTypes = memoryTypes
-        self.numSlices = numSlices
+        self.numBlocks = numBlocks
         self.depth = depth
         self.order = order
         self.width = width
-        self.numStages = max([len(numSlices[mem]) for mem in memoryTypes])
-        self.maxTablesPerSlice = maxTablesPerSlice
+        self.numStages = max([len(numBlocks[mem]) for mem in memoryTypes])
+        self.maxTablesPerBlock = maxTablesPerBlock
         if len(order)==0:
             self.order = range(self.numStages)
             pass

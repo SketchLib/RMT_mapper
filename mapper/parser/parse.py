@@ -122,7 +122,7 @@ def getRmtPreprocess(d):
 def getFlexpipeSwitch(d):
     from src.flexpipe.flexpipe_switch import FlexpipeSwitch
     # try catch key not in dict
-    switch = FlexpipeSwitch(numSlices = d['numSlices'], depth = d['depth'], width = d['width'], order = d['order'], maxTablesPerBlock = d['maxTablesPerSlice'])
+    switch = FlexpipeSwitch(numBlocks = d['numSlices'], depth = d['depth'], width = d['width'], order = d['order'], maxTablesPerBlock = d['maxTablesPerSlice'])
     return switch
 
 def getProgramDdSmall(d):

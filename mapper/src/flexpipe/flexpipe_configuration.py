@@ -76,7 +76,7 @@ class FlexpipeConfiguration:
             self.logger.info("(%s) In memory: %s" % (self.version, mem))
             for st in range(self.switch.numStages):
                 self.logger.info("(%s) In stage %d" % (self.version, st))
-                for sl in self.preprocess.slicesInStage(mem, st):
+                for sl in self.preprocess.blocksInStage(mem, st):
                     for log in range(self.program.MaximumLogicalTables):
                         numRows = self.numberOfRows[mem][log,sl]
                         if numRows > 0:
@@ -86,7 +86,7 @@ class FlexpipeConfiguration:
                                 "(%s) " % self.version +\
                                 "Table %s " % self.program.names[log] +\
                                     "start sl %d, row %d; " % (sl, startRow) +\
-                                    "%d slices wide, %d rows deep; color %s"\
+                                    "%d blocks wide, %d rows deep; color %s"\
                                     % (numSl, numRows, logColors[log]))
                             pass # if numRows > 0
                         pass # for log
@@ -107,7 +107,7 @@ class FlexpipeConfiguration:
         startRowDict = {}
         numberOfRowsDict = {}
         for mem in self.switch.memoryTypes:
-            shape = (self.program.MaximumLogicalTables, sum(self.switch.numSlices[mem]))
+            shape = (self.program.MaximumLogicalTables, sum(self.switch.numBlocks[mem]))
             startRowDict[mem] = np.zeros(shape)
             numberOfRowsDict[mem] = np.zeros(shape)
             pass
@@ -127,7 +127,7 @@ class FlexpipeConfiguration:
                 # set numRows and startRow
                 # check for overlap
                 if numRows > 0:
-                    self.logger.info("(%s) Parse: Slice %d has %s in %d..%d" %\
+                    self.logger.info("(%s) Parse: Block %d has %s in %d..%d" %\
                                      (self.version, startSl, tablename, startRow, startRow + numRows))
                     numberOfRowsDict[mem][tableIndex, startSl] = numRows
                     startRowDict[mem][tableIndex, startSl] = startRow
@@ -228,7 +228,7 @@ class FlexpipeConfiguration:
             maxY = self.switch.depth[mem]
             minY = 0
             minX = 0
-            maxX = sum([len(self.preprocess.slicesInStage(mem, st))\
+            maxX = sum([len(self.preprocess.blocksInStage(mem, st))\
                            for st in range(self.switch.numStages)])\
                            * self.switch.width[mem]
             
@@ -238,7 +238,7 @@ class FlexpipeConfiguration:
             for st in range(self.switch.numStages):
                 tablesPerStage[mem].append({})
                 
-                for sl in self.preprocess.slicesInStage(mem, st):
+                for sl in self.preprocess.blocksInStage(mem, st):
                     xLeft = sl * self.switch.width[mem]
                     ax.add_line(matplotlib.lines.Line2D([xLeft,xLeft],[minY,maxY], lw=1, color='k'))
                     for log in range(self.program.MaximumLogicalTables):
@@ -253,7 +253,7 @@ class FlexpipeConfiguration:
                             patch = matplotlib.patches.Rectangle((xLeft, yBottom),\
                                                                      width,height,\
                                                                      color=logColors[log])
-                            self.logger.info("(%s) %s in mem %s, stage %d, slice %d in rows %d .. %d (%s)" %\
+                            self.logger.info("(%s) %s in mem %s, stage %d, block %d in rows %d .. %d (%s)" %\
                                          (self.version, self.program.names[log], mem, st, sl,
                                           startRow, startRow+numRows, logColors[log]))
                             ax.add_patch(patch)
@@ -281,7 +281,7 @@ class FlexpipeConfiguration:
                 ax.add_line(matplotlib.lines.Line2D([startOfStage, startOfStage],[minY,maxY], lw=5, color='k'))
                 pass
             ax.annotate("%s %s" % (mem, [st for st in range(self.switch.numStages)\
-                                             if self.switch.numSlices[mem][st]>0]),\
+                                             if self.switch.numBlocks[mem][st]>0]),\
                             (5,5), color='g')
 
             t = datetime.now()

@@ -29,13 +29,13 @@ class FlexpipePreprocess:
         self.logger = logging.getLogger(__name__)
         pass
 
-    def slicesInStage(self, mem, st):
-        startSlice = 0
+    def blocksInStage(self, mem, st):
+        startBlock = 0
         for stage in range(0,st):
-            startSlice += self.switch.numSlices[mem][stage]
+            startBlock += self.switch.numBlocks[mem][stage]
             pass
         
-        return range(startSlice, startSlice + self.switch.numSlices[mem][st])
+        return range(startBlock, startBlock + self.switch.numBlocks[mem][st])
 
     def setUseMemory(self):
         self.use = {}

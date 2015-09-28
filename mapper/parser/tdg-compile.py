@@ -73,7 +73,7 @@ parser.add_argument('--log_level', required=False, default=default_log_level, ty
 
 # FLEXPIPE ILP COMPILER SPECIFIC
 parser.add_argument('-g', '--flexpipe_granularity', type=int, required=False,
-                    help='e.g., each table in a slice has at least as many rows, e.g., 1000 or 500 or 100')
+                    help='e.g., each table in a block has at least as many rows, e.g., 1000 or 500 or 100')
 
 # RMT ILP COMPILER SPECIFIC
 parser.add_argument('--compiler_mipstartFile', required=False, type=str, help="starting solution for ILP compiler")

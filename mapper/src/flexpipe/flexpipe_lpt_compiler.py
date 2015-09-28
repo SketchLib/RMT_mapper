@@ -51,13 +51,13 @@ class FlexpipeLptCompiler:
         return len(names)
     
 
-    def getSlicesInStage(self, mem, st):
-        startSlice = 0
+    def getBlocksInStage(self, mem, st):
+        startBlock = 0
         for stage in range(0,st):
-            startSlice += self.switch.numSlices[mem][stage]
+            startBlock += self.switch.numBlocks[mem][stage]
             pass
         
-        return range(startSlice, startSlice + self.switch.numSlices[mem][st])
+        return range(startBlock, startBlock + self.switch.numBlocks[mem][st])
     
     def getNextTable(self):
         succWeight = 0
@@ -87,7 +87,7 @@ class FlexpipeLptCompiler:
         validMems = []
         for mem in self.preprocess.use:
             if self.preprocess.use[mem][tableIndex] == 1\
-                    and mem in self.switch.numSlices:
+                    and mem in self.switch.numBlocks:
                 validMems.append(mem)
                 pass
             pass
@@ -148,7 +148,7 @@ class FlexpipeLptCompiler:
         self.memPerStage = []
         for st in range(self.switch.numStages):
             for mem in self.switch.memoryTypes:
-                if self.switch.numSlices[mem][st] > 0:
+                if self.switch.numBlocks[mem][st] > 0:
                     self.memPerStage.append((st, mem))
                     pass
                 pass
@@ -157,31 +157,31 @@ class FlexpipeLptCompiler:
         self.logger.debug(self.memPerStage)
         pass
     
-    def setupTablesInSlice(self):
-        self.tablesInSlice = {}
+    def setupTablesInBlock(self):
+        self.tablesInBlock = {}
 
 
         for mem in self.switch.memoryTypes:
-            self.tablesInSlice[mem] = {}
-            for sl in range(sum(self.switch.numSlices[mem])):
-                self.tablesInSlice[mem][sl] = {}
+            self.tablesInBlock[mem] = {}
+            for sl in range(sum(self.switch.numBlocks[mem])):
+                self.tablesInBlock[mem][sl] = {}
                 pass
             pass
 
         memIndex = 0
         mem = self.switch.memoryTypes[memIndex]
-        slices = self.getSlicesInStage(mem, 0)
-        while len(slices) == 0:
+        blocks = self.getBlocksInStage(mem, 0)
+        while len(blocks) == 0:
             memIndex += 1
             mem = self.switch.memoryTypes[memIndex]
-            slices = self.getSlicesInStage(mem, 0)
+            blocks = self.getBlocksInStage(mem, 0)
             pass
         pass
 
     def setupDirty(self):
         self.dirty = {}
         for mem in self.switch.memoryTypes:
-            shape = (self.switch.depth[mem], sum(self.switch.numSlices[mem]))
+            shape = (self.switch.depth[mem], sum(self.switch.numBlocks[mem]))
             self.dirty[mem] = np.zeros(shape)
             pass
         pass
@@ -191,25 +191,25 @@ class FlexpipeLptCompiler:
         self.assigned['start'] = 0
         pass
 
-    def setupLastSlice(self):    
-        self.lastSliceOfRow = {}
-        self.lastSliceOfTable = {}
+    def setupLastBlock(self):    
+        self.lastBlockOfRow = {}
+        self.lastBlockOfTable = {}
         for mem in self.switch.memoryTypes:
-            self.lastSliceOfRow[mem] = {}
-            self.lastSliceOfTable[mem] = {}
+            self.lastBlockOfRow[mem] = {}
+            self.lastBlockOfTable[mem] = {}
             for st in range(self.switch.numStages):
-                # last slice is actually one more than last slice used
-                self.lastSliceOfRow[mem][st] = [-1] * self.switch.depth[mem]
-                self.lastSliceOfTable[mem][st] = [-1] * self.program.MaximumLogicalTables
+                # last block is actually one more than last block used
+                self.lastBlockOfRow[mem][st] = [-1] * self.switch.depth[mem]
+                self.lastBlockOfTable[mem][st] = [-1] * self.program.MaximumLogicalTables
                 pass
             pass
         pass
 
-    def setupRowsPerSlice(self):
+    def setupRowsPerBlock(self):
         self.startRowDict = {}
         self.numberOfRowsDict = {}
         for mem in self.switch.memoryTypes:
-            shape = (self.program.MaximumLogicalTables, sum(self.switch.numSlices[mem]))
+            shape = (self.program.MaximumLogicalTables, sum(self.switch.numBlocks[mem]))
             self.startRowDict[mem] = np.zeros(shape)
             self.numberOfRowsDict[mem] = np.zeros(shape)
             pass
@@ -271,56 +271,56 @@ class FlexpipeLptCompiler:
         table = self.table
         tableIndex = self.tableIndex
         
-        slicesInStage = self.getSlicesInStage(mem, st)
-        slicesNeeded = int(self.preprocess.pfBlocks[mem][tableIndex])
+        blocksInStage = self.getBlocksInStage(mem, st)
+        blocksNeeded = int(self.preprocess.pfBlocks[mem][tableIndex])
         
         def slRange(r):
-            start = max([self.lastSliceOfRow[mem][st][r],\
-                             self.lastSliceOfTable[mem][st][tableIndex]])
-            # Last slice of row not updated yet,
-            # so start from first slice of stage
+            start = max([self.lastBlockOfRow[mem][st][r],\
+                             self.lastBlockOfTable[mem][st][tableIndex]])
+            # Last block of row not updated yet,
+            # so start from first block of stage
             if (start == -1):
-                if len(slicesInStage) == 0:
+                if len(blocksInStage) == 0:
                     return []
-                start = slicesInStage[0]
+                start = blocksInStage[0]
                 pass
             else:
                 start += 1
                 pass
 
-            end = start + slicesNeeded
-            if end > slicesInStage[-1]:
-                end = slicesInStage[-1]+1
+            end = start + blocksNeeded
+            if end > blocksInStage[-1]:
+                end = blocksInStage[-1]+1
                 pass
 
             return range(start, end)
 
         validRows = [r for r in range(self.switch.depth[mem]) if\
-                         len(slRange(r)) >= slicesNeeded and\
+                         len(slRange(r)) >= blocksNeeded and\
                          not any([self.dirty[mem][r,sl]==1 or\
-                                      len(self.tablesInSlice[mem][sl]) > \
-                                      self.switch.maxTablesPerSlice-1 \
+                                      len(self.tablesInBlock[mem][sl]) > \
+                                      self.switch.maxTablesPerBlock-1 \
                                       for sl in slRange(r)])]
                      
         if len(validRows) > 0:
-            startRow = min(validRows, key = lambda r: self.lastSliceOfRow[mem][st][r])
-            startSlice = max(self.lastSliceOfTable[mem][st][tableIndex],\
-                                 self.lastSliceOfRow[mem][st][startRow])
-            if (startSlice == -1):
-                startSlice = slicesInStage[0]
+            startRow = min(validRows, key = lambda r: self.lastBlockOfRow[mem][st][r])
+            startBlock = max(self.lastBlockOfTable[mem][st][tableIndex],\
+                                 self.lastBlockOfRow[mem][st][startRow])
+            if (startBlock == -1):
+                startBlock = blocksInStage[0]
                 pass
             else:
-                startSlice += 1
+                startBlock += 1
                 pass
 
-            newSlRange = range(startSlice, startSlice + slicesNeeded)
+            newSlRange = range(startBlock, startBlock + blocksNeeded)
 
             
             newValidRows = [r for r in validRows if\
                                 r >= startRow and\
                                 not any([self.dirty[mem][r,sl]==1 or\
-                                             len(self.tablesInSlice[mem][sl]) > \
-                                             self.switch.maxTablesPerSlice-1 \
+                                             len(self.tablesInBlock[mem][sl]) > \
+                                             self.switch.maxTablesPerBlock-1 \
                                              for sl in newSlRange])]
             numRows = 1
             for i in range(1, len(newValidRows)):
@@ -335,7 +335,7 @@ class FlexpipeLptCompiler:
                 pass
 
             #self.logger.debug("Row range: " + str(rowRange[0]) + ", " + str(rowRange[-1]))
-            #self.logger.debug("Slice range: " + str(newSlRange[0]) + ", " + str(newSlRange[-1]))
+            #self.logger.debug("Block range: " + str(newSlRange[0]) + ", " + str(newSlRange[-1]))
 
             return newSlRange, rowRange
 
@@ -347,10 +347,10 @@ class FlexpipeLptCompiler:
         tableIndex = self.tableIndex
         self.startRowDict[mem][tableIndex,self.slRange[0]] = self.rowRange[0]
         for sl in self.slRange:
-            self.tablesInSlice[mem][sl][self.table] = 1
+            self.tablesInBlock[mem][sl][self.table] = 1
             pass
         for r in self.rowRange:
-            self.lastSliceOfRow[mem][st][r] = self.slRange[-1]
+            self.lastBlockOfRow[mem][st][r] = self.slRange[-1]
             self.numberOfRowsDict[mem][tableIndex,self.slRange[0]] += 1
             for sl in self.slRange:
                 self.dirty[mem][r,sl] = 1
@@ -359,9 +359,9 @@ class FlexpipeLptCompiler:
             pass
         self.logger.debug("Assigned " + str(len(self.rowRange)) + " rows from "\
                      + str(self.rowRange[0]) + " to " + str(self.rowRange[-1]) +\
-                     "in slices " + str(self.slRange[0]) + " to " + str(self.slRange[-1])\
+                     "in blocks " + str(self.slRange[0]) + " to " + str(self.slRange[-1])\
                      + " of " + mem)
-        self.lastSliceOfTable[mem][st][tableIndex] = self.slRange[-1]
+        self.lastBlockOfTable[mem][st][tableIndex] = self.slRange[-1]
         pass
 
     def switchToNextStage(self):
@@ -404,15 +404,15 @@ class FlexpipeLptCompiler:
         self.setupSwitchToNext() # sorts st, mem by increasing stage for switchToNext()
         self.setupNextTable() # sorts table by decreasing widths for getNextTable()
 
-        self.setupTablesInSlice() # tablesInSlice[mem][sl] = {}
+        self.setupTablesInBlock() # tablesInBlock[mem][sl] = {}
         self.setupDirty() # dirty[mem][row,sl] = 0 or 1
         self.setupAssigned() # assigned[table] = st
 
-        # lastSliceOfRow[mem][st][row] = sl, lastSliceOfTable[mem][st][log] = sl
-        self.setupLastSlice()
+        # lastBlockOfRow[mem][st][row] = sl, lastBlockOfTable[mem][st][log] = sl
+        self.setupLastBlock()
 
         # startRowDict[mem][log,sl] = row, numberOfRows[mem][log,sl] = num
-        self.setupRowsPerSlice()
+        self.setupRowsPerBlock()
 
         self.currentStage = 0
         self.table = 'start'        
@@ -442,12 +442,12 @@ class FlexpipeLptCompiler:
             
             # Possible that table can't use this mem, handle later
             
-            slicesNeeded = int(self.preprocess.pfBlocks[self.mems[self.currentMem]]\
+            blocksNeeded = int(self.preprocess.pfBlocks[self.mems[self.currentMem]]\
                                                             [self.tableIndex])
 
             nextTables += "%s (%d), " % (self.table, earliest)
             self.logger.debug("Next table " + self.table + ", # words " + str(self.numWordsLeft) +\
-                         ", # slices " + str(slicesNeeded) + ", earliest stage " +\
+                         ", # blocks " + str(blocksNeeded) + ", earliest stage " +\
                          str(earliest))
                 
 
@@ -502,14 +502,14 @@ class FlexpipeLptCompiler:
         for mem in self.switch.memoryTypes:
             order = 0
             
-            self.results['usedSlices'+mem] =\
-                int(sum([1 for sl in range(sum(self.switch.numSlices[mem])) if\
+            self.results['usedBlocks'+mem] =\
+                int(sum([1 for sl in range(sum(self.switch.numBlocks[mem])) if\
                              any([round(self.numberOfRowsDict[mem][log, sl]) > 0\
                                      for log in range(self.numTables)])]))
             pass
 
-        self.results['totalUsedSlices'] =\
-            sum([self.results['usedSlices'+mem]\
+        self.results['totalUsedBlocks'] =\
+            sum([self.results['usedBlocks'+mem]\
                      for mem in self.switch.memoryTypes])
 
         configs = {}
