@@ -40,6 +40,10 @@ Compiling L2L3Simple to RMT using FFD heuristic-
 
 python tdg-compile.py -c RmtFfdCompiler-16 -p ProgramL2L3Simple -s RmtReal32 -r RmtPreprocess --log_level INFO
 
+Compiling L2L3Simple to RMT using ILP-
+
+python tdg-compile.py -c RmtIlpCompiler-020 -p ProgramL2L3Simple -s RmtReal32 -r RmtPreprocess --log_level INFO
+
 Compiling DdSmall (smaller version of L2L3Simple) to FlexPipe using heuristic-
 
 python tdg-compile.py -c FlexpipeLptCompiler -p ProgramDdSmall -s FlexpipeReal -r FlexpipePreprocess --log_level INFO
