@@ -49,7 +49,73 @@ class RmtSwitch:
                                  'wattsPerTcamBit':5.8520785245e-07},\
                      unpackableMemTypes=['tcam'],\
                      toposortOrder = []):
-        """ initialize with resources available in each stage"""
+        """ initialize with resources available in each stage
+        Stages in the RMT chip are uniform- i.e., they have
+        the same distribution of resources- memory blocks,
+        crossbar subunits, action crossbar bits etc.
+
+        Thus @numBlocks is a mapping from memory types to a
+        list of number of blocks, which applies for every stage.
+        
+        @depth and @width are mappings from memory types to the
+        depth and width of inidividual blocks where-
+         depth is the number of match entries the block can store
+         width is the max. width of a match entry that can fit        
+
+        @numStages is the number of stages
+        
+        @matchType is a mapping from memory types to the
+         match types (exact, lpm etc.) that can be
+         supported. E.g., sram supports "exact" match type
+         but not "lpm" (longest prefix match).
+
+         @inputCrossbarNumSubunits and @inputCrossbarWidthSubunit
+        describe the input crossbars available
+        for each of SRAMs and TCAMs in every stage. An input
+        crossbar carries the fields to be matched from
+        the packet header (vector) to the actual memories.
+        It is made of subunits of fixed width. E.g., to match
+        a 128b IPv6 address we would need 2 80b subunits.
+
+        @actionCrossbar specifies the width of the action
+        crossbar in each stage. There is one action crossbar
+        that carries "inputs to table actions" (action data)
+        from the SRAMs to the action ALUs. Note that
+        action data is always stored in SRAMs, even if the corresponding
+        match entries/ logical table is in TCAM.
+
+        @matchTablesPerStage is the maximum number of different
+        logical tables that can be supported per-stage per-memory
+        types. This limit is a consequence of the fixed
+        resolution logic per-stage that resolves table matches-
+        the logic can support only a fixed number of tables.
+
+        @delays[dep] is the number of cycles spent in a stage st
+        when a table in stage st+1 has a dependency of type
+        @dep on a table in stage st. E.g., when there is
+        a match dependency where table in st+1 matches on
+        a field modified by table in st, then st+1 wait
+        for both match and action to complete in st, before
+        it can start matching- this takes 12 cycles.
+
+        @power is an estimate of the power used per memory type.
+
+        @unpackableMemTypes is a list of memory types that
+        don't support packing memory blocks together
+        to support more than one match entry per row
+        - they can be packed together to support only
+        one match entry per row. E.g., two 40b wide
+        TCAMs can be used to match a 60b field. But
+        we can't pack three 40b TCAMs for two 60b
+        fields.
+        
+        @topoSortOrder is a list indexed by stage number where @order[i]
+         is the topological order of stage i in the
+         execution graph (where nodes correspond to stages
+         and there is an edge from stage x to y if y executes
+         after x). E.g., in a pipeline where stage 3 and 4 execute simultaneously
+         order[3] = order[4] etc. 
+        """
         self.logger = logging.getLogger(__name__)
         self.logger.info("RMT SWITCH")
 
