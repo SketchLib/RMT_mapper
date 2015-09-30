@@ -19,8 +19,6 @@
 #
 #
 
-
-
 import random
 import numpy as np
 import math
@@ -78,6 +76,7 @@ class RmtConfiguration:
         pass
 
     def getWordsPerTable(self):
+        """ Get match entries per table per stage. """
         packingUnits = {}
         wordsPerLog = {}
 
@@ -145,6 +144,8 @@ class RmtConfiguration:
         pass
 
     def checkWordsPerTable(self):
+        """ Check if enough match entries have been
+        assigned for each table """
         totalUnassignedWords = 0
         for log in range(self.logMax):
             wordsAssigned = np.floor(sum([self.wordsPerLog[log][st] for st in range(self.stMax)]))
@@ -555,6 +556,15 @@ class RmtConfiguration:
         pass
 
     def getEarliestStageFromAssign(self, assignInfo):
+        """ Returns a mapping from tables
+        to information about the first stage they could have started
+        in- a table must start after all the tables it depends on
+        have been completely assigned. The informations is a list of
+         lists [@st, @dep, @prev, @prevEnd] which should be read as        
+        Table xx can't start before stage @st because of @dependency
+        on table @prev which ends in stage @prevEnd, one for each
+        @prev that the table depends on.
+        """
         gr = self.da.getDigraph()
         earliestStageFromAssign = {}
         for table in self.program.names:
@@ -677,17 +687,14 @@ class RmtConfiguration:
         pass
 
     def getPerLogAssignInfo(self):
-        # total blocks from stage .. through ..
+        """
+         Return mapping from table to assignment info
+          'start': start stage (or -1 if not valid)
+          'end': end stage (or -1 if not valid)
+        """
         blocks = self.blocks
         perLogAssignInfo = {}
         for log in range(self.logMax):
-            totalMemBlocks = {}
-            for mem in self.switch.memoryTypes:
-                totalMemBlocks[mem] = sum([blocks[st][log][mem]\
-                                       for st in range(self.stMax)\
-                                               for thing in self.switch.typesIn[mem]])
-                pass
-            
             inStages = [st for st in range(self.stMax)\
                                   if any([blocks[st][log][mem] > 0\
                                               for mem in blocks[st][log].keys()])]
@@ -702,16 +709,6 @@ class RmtConfiguration:
 
             name = self.program.names[log]
             perLogAssignInfo[name] = {'start': startStage, 'end': endStage}
-            for mem in self.switch.memoryTypes:
-                perLogAssignInfo[name][mem] = totalMemBlocks[mem]
-                pass
-            perLogAssignInfo[name]['blocksInfo'] = ", ".join("%d %s" % (perLogAssignInfo[name][t], t[0])\
-                                                             for t in self.switch.memoryTypes\
-                                                             if perLogAssignInfo[name][t] > 0)
-            perLogAssignInfo[name]['stageInfo'] = " in st %d" % startStage
-            if not startStage == endStage:
-                perLogAssignInfo[name]['stageInfo'] = " in st %d" % perLogAssignInfo[name]['start']
-                pass
             pass
         return perLogAssignInfo
 

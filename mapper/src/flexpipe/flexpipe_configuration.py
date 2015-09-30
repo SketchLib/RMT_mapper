@@ -19,8 +19,6 @@
 #
 #
 
-
-
 import numpy as np
 import math
 from datetime import datetime
@@ -43,6 +41,10 @@ except:
 
 
 class FlexpipeConfiguration:
+    """
+    Module to describe and log a FlexPipe switch configuration
+    for a given program
+    """
     def __init__(self, program, switch, preprocess, version):
         self.logger = logging.getLogger(__name__)
 
@@ -51,19 +53,100 @@ class FlexpipeConfiguration:
         self.preprocess = preprocess
         self.version = version
         self.da = FlexpipeDependencyAnalysis(program)
+        self.stMax = self.switch.numStages
+        self.logMax = self.program.MaximumLogicalTables
 
         pass
 
     def displayInitialConditions(self):
         pass
-    
+
+    def getPerLogAssignInfo(self):
+        """
+         Return mapping from table to assignment info
+          'start': start stage (or -1 if not valid)
+          'end': end stage (or -1 if not valid)
+        """
+        rows = self.numberOfRows
+        perLogAssignInfo = {}
+        for log in range(self.logMax):            
+            inStages = [st for st in range(self.stMax)\
+                                  if any([rows[mem][log,sl] > 0\
+                                              for mem in rows.keys()\
+                                              for sl in self.preprocess.blocksInStage(mem,st)])
+                                             ]
+            if len(inStages) > 0:
+                startStage = min(inStages)
+                endStage = max(inStages)
+                pass
+            else:
+                startStage = -1
+                endStage = -1
+                pass
+
+            name = self.program.names[log]
+            perLogAssignInfo[name] = {'start': startStage, 'end': endStage}
+        return perLogAssignInfo
+
+
+    def getEarliestStageFromAssign(self, assignInfo):
+        """ Returns a mapping from tables
+        to information about the first stage they could have started
+        in- a table must start after all the tables it depends on
+        have been completely assigned. The informations is a list of
+         lists [@st, @dep, @prev, @prevEnd] which should be read as        
+        Table xx can't start before stage @st because of @dependency
+        on table @prev which ends in stage @prevEnd, one for each
+        @prev that the table depends on.
+        """
+        gr = self.da.getDigraph()
+        earliestStageFromAssign = {}
+        for table in self.program.names:
+            previousTables = gr.neighbors(table)
+            previousTablesAssigned = True
+            for prev in previousTables:
+                if prev == 'start':
+                    continue
+                if prev not in assignInfo\
+                        or 'end' not in assignInfo[prev]\
+                        or assignInfo[prev]['end'] == -1:
+                    self.logger.warn("For %s, %s must be assigned before assigning %s"\
+                                     % (self.version, prev, table))
+                    previousTablesAssigned = False
+                    pass
+                pass
+            earliestStages = []
+            if previousTablesAssigned:
+                for prev in previousTables:
+                    if prev == 'start':
+                        continue
+                    prevEnd = assignInfo[prev]['end']
+                    edge = (table,prev)
+                    edgeWeight = int(abs(gr.edge_weight(edge)))
+                    tableStart = prevEnd + edgeWeight
+                    attr = gr.edge_attributes(edge)
+                    props = {"type":""}
+                    for key, val in attr:
+                        props[key] = val
+                        pass
+                    edgeType = props["type"]
+                    earliestStages.append((tableStart, edgeType, prev, prevEnd))
+                    pass
+            earliestStageFromAssign[table] =\
+                sorted(earliestStages, key = lambda tup: tup[0], reverse=True)
+            pass
+        return earliestStageFromAssign
+
     def configure(self, startRow, numberOfRows):
         self.startRow = startRow
         self.numberOfRows = numberOfRows
         pass
     
     def display(self):
-
+        """ Display configuration- tables in each memory type,
+        in each stage.
+        """
+        
         tableGroups = {}
         for name in self.program.names: 
             tableGroups[name] = [name]
@@ -71,6 +154,7 @@ class FlexpipeConfiguration:
         colors = self.getColorsFromTableGroups(tableGroups)
         logColors = colors['logColors']
 
+        self.logger.info("\n(%s) Rows allocated per stage\n" % self.version)
         memoryTypes = self.switch.memoryTypes
         for mem in memoryTypes:
             self.logger.info("(%s) In memory: %s" % (self.version, mem))
@@ -92,59 +176,18 @@ class FlexpipeConfiguration:
                         pass # for log
                     pass # for sl
                 pass # for st
-            pass # for mem       
-        pass
+            pass # for mem
 
-    def parseText(self, filename):
-        f = open(filename, 'r')
+        assignInfo =  self.getPerLogAssignInfo()
 
-        #numRows = self.numberOfRows[mem][log,sl]
-        #startRow = self.startRow[mem][log,sl]
-
-        mem = ""
-        st = -1
-
-        startRowDict = {}
-        numberOfRowsDict = {}
-        for mem in self.switch.memoryTypes:
-            shape = (self.program.MaximumLogicalTables, sum(self.switch.numBlocks[mem]))
-            startRowDict[mem] = np.zeros(shape)
-            numberOfRowsDict[mem] = np.zeros(shape)
+        self.logger.info("\n(%s) Table xx can't start before stage @st because of @dependency on table @prev which ends in stage @prevEndSt [(st, dependency, prev, prevEndSt),..]" % self.version)
+        notBefore = self.getEarliestStageFromAssign(assignInfo)
+        for table in self.program.names:
+            previousTables = notBefore[table]
+            self.logger.info("%s  : %s" % (table, previousTables))
             pass
-        pass
 
-        
-        for line in f:
-            if "Table" in line:
-                words = line.rstrip().split()
-                words = words[1:]
-                tablename = words[0]
-                tableIndex = self.program.names.index(tablename)
-                startSl = int(words[3].rstrip(','))
-                startRow = int(words[5].rstrip(';'))
-                numSl = int(words[6])
-                numRows = int(words[9])
-                # set numRows and startRow
-                # check for overlap
-                if numRows > 0:
-                    self.logger.info("(%s) Parse: Block %d has %s in %d..%d" %\
-                                     (self.version, startSl, tablename, startRow, startRow + numRows))
-                    numberOfRowsDict[mem][tableIndex, startSl] = numRows
-                    startRowDict[mem][tableIndex, startSl] = startRow
-                    pass
-                pass
-            elif "In memory" in line:
-                words = line.rstrip().split()
-                mem = words[2]
-                pass
-            elif "In stage" in line:
-                words = line.rstrip().split()
-                st - int(words[2])
-                pass
-            pass
-        
-        results = {'startRowDict': startRowDict, 'numberOfRowsDict':numberOfRowsDict}
-        return results
+        pass
 
     def getColorsFromTableGroups(self, tableGroups):
         logColors = {}
@@ -329,42 +372,3 @@ class FlexpipeConfiguration:
         plt.close('all')
         pass
 
-    def getPerLogAssignInfo(self):
-        # total blocks from stage .. through ..
-        #blocks = self.blocks
-        perLogAssignInfo = {}
-        for log in range(self.program.MaximumLogicalTables):
-            """
-            totalMemBlocks = {}
-            for mem in self.switch.memoryTypes:
-                totalMemBlocks[mem] = sum([blocks[st][log][mem]\
-                                       for st in range(self.stMax)\
-                                               for thing in self.switch.typesIn[mem]])
-                pass
-            
-            inStages = [st for st in range(self.stMax)\
-                                  if any([blocks[st][log][mem] > 0\
-                                              for mem in blocks[st][log].keys()])]
-            if len(inStages) > 0:
-                startStage = min(inStages)
-                endStage = max(inStages)
-                pass
-            else:
-                startStage = -1
-                endStage = -1
-                pass
-            """
-            startStage = -1
-            endStage = -1
-            name = self.program.names[log]
-            perLogAssignInfo[name] = {'start': startStage, 'end': endStage}
-            for mem in self.switch.memoryTypes:
-                perLogAssignInfo[name][mem] = ""#totalMemBlocks[mem]
-                pass
-            perLogAssignInfo[name]['blocksInfo'] = ""
-            perLogAssignInfo[name]['stageInfo'] = ""
-            if not startStage == endStage:
-                perLogAssignInfo[name]['stageInfo'] = ""
-                pass
-            pass
-        return perLogAssignInfo
