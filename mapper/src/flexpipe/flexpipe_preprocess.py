@@ -25,11 +25,21 @@ import logging
 import numpy as np
 
 class FlexpipePreprocess:
+    """
+    Preprocessor module that precomputes information such as valid packing units
+    for compiler to use.
+    """
+
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         pass
 
     def blocksInStage(self, mem, st):
+        """ Returns indices of mem blocks in stage st
+        Indexing starts from first mem block in the first
+        stage and goes on till the last mem block over
+        all stages.
+        """
         startBlock = 0
         for stage in range(0,st):
             startBlock += self.switch.numBlocks[mem][stage]
@@ -38,6 +48,9 @@ class FlexpipePreprocess:
         return range(startBlock, startBlock + self.switch.numBlocks[mem][st])
 
     def setUseMemory(self):
+        """ Based on table's match type e.g., exact/ ternary etc., determine
+        which switch memory types it can use e.g., SRAM and TCAM/ TCAM etc.
+        """
         self.use = {}
         for mem in self.switch.memoryTypes:
             self.use[mem] = np.zeros(self.program.MaximumLogicalTables)
@@ -56,8 +69,19 @@ class FlexpipePreprocess:
         self.switch = switch
         self.program = program
         self.pfBlocks = {}
+
+        """
+        Order in which stages execute, for FlexPipe as descibed
+        in flexpipe_switch.py, stages execute one after another.
+        """
+
         self.toposortOrderStages = switch.order
         self.setUseMemory()
+
+        # pfBlocks[mem][log] is the number of RAMs
+        # that make up a packing unit (that can fit one
+        # entry per row) for table log and memories of type mem.
+
         for mem in switch.memoryTypes:
             self.pfBlocks[mem] = np.matrix([np.ceil(float(m)/switch.width[mem]) for m in\
                                         program.logicalTableWidths]).T
