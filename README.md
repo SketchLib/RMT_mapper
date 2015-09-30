@@ -18,8 +18,20 @@ sudo apt-get install python-matplotlib
 
 sudo apt-get install python-pygraph
 
+# Code overview #
+The code is organized as follows-
 
-# Compiling Programs #
+For each target, we have a compiler, switch, preprocessor,
+and configuration module. We also have a program module that defines the annotated TDG format
+for a program, and different use cases based on this.
+The compiler takes as in put an instance of the program, switch and preprocessor module
+and returns a configuration module, populated with the switch configuration it found.
+
+You can play around with different switch parameters by describing your own switch module in config / switch00.txt. 
+
+You can also explore different compiler configurations by describing your compiler module in config / comp00.txt.
+
+# Compiling programs/ TDGs #
 
 ## To compile a P4 program ##
 
