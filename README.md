@@ -2,21 +2,64 @@ Please e-mail Lavanya Jose (lavanyaj@cs.stanford.edu) for questions about the co
 
 # Dependencies #
 
-For P4 programs, install p4-hlir
+Here are instructions to setup on Linux (you can also setup on Mac)
 
-For dependency analysis, download python-graph
+Here is what I needed to compile TDGs using greedy heuristics 
 
- - git clone https://github.com/pmatiello/python-graph.git
+```
+#!sh
+sudo apt-get install python-numpy python-matplotlib python-pygraph
+```
 
- - cd python-graph
+Now you should be able to to compile TDGs using greedy heuristics and also view the configurations in PDF-
 
- - sudo make install-core
+```
+#!sh
 
-You may also need
+# Compiling L2L3Simple program to RMT using FFD heuristic-
+python tdg-compile.py -c RmtFfdCompiler-16 -p ProgramL2L3Simple -s RmtReal32 -r RmtPreprocess --log_level INFO --picture_prefix ./
 
-sudo apt-get install python-matplotlib
+# Compiling DdSmall (smaller version of L2L3Simple) program to Flexpipe using its only greedy heuristic-
+python tdg-compile.py -c FlexpipeLptCompiler -p ProgramDdSmall -s FlexpipeReal -r FlexpipePreprocess --log_level INFO --picture_prefix ./
 
-sudo apt-get install python-pygraph
+```
+
+To compile P4-programs using greedy heuristics you also need to install [p4-hlir](https://github.com/p4lang/p4-hlir)
+
+```
+#!sh
+# cd to directory you want then
+git clone https://github.com/p4lang/p4-hlir.git
+cd p4-hlir
+sudo apt-get install python-setuptools
+sudo python setup.py install
+# or if you don't have sudo permissions, python setup.py install --user
+sudo apt-get install gcc
+```
+
+Now you should be able to to compile P4 programs in the mapper/p4_programs directory using greedy heuristics, and also view the configurations in PDF-
+
+```
+#!sh
+# Compiling a P4 program /Users/lav/p4factory/targets/dc_example/p4src/dc_example.p4 to RMT using FFD heuristic
+python p4-compile.py -p ../p4_programs/l2l3_nsdi/p4src/l2l3_nsdi.p4 -c RmtFfdCompiler-16  -s RmtReal32 -r RmtPreprocess --picture_prefix ./
+```
+
+To compile programs using the ILP compilers, you'll need to install 
+
+1. The ILP solver CPLEX (a free version is available for academics, it's already installed on the Stanford farmshare cluster)
+
+2. A Python wrapper for CPLEX called [pycpx](http://www.stat.washington.edu/~hoytak/code/pycpx/) developed by Hoyt Koepke at University of Washington, licensed under LGPL open source license. I modified this slightly and you should download pycpx from [here](https://github.com/lavanyaj/pycpx) instead.
+
+Instructions to install CPLEX and pycpx in ilp_setup.txt
+
+Once that is done, you can run commands like the following
+
+```
+#!sh
+# Compiling DdSmall (smaller version of L2L3Simple) to FlexPipe using ILP-
+python tdg-compile.py -c FlexpipeIlpCompiler -p ProgramDdSmall -s FlexpipeReal -r FlexpipePreprocess --log_level INFO
+```
 
 # Code overview #
 The code is organized as follows-
@@ -31,46 +74,16 @@ You can play around with different switch parameters by describing your own swit
 
 You can also explore different compiler configurations by describing your compiler module in config / comp00.txt.
 
-# Compiling programs/ TDGs #
 
-## To compile a P4 program ##
+## Some more examples: ##
 
-cd mapper/parser
+```
+#!sh
 
-python p4-compile.py -h   
-
-## To compile a TDG version of program (e.g., those in mapper/tdg_programs) ##
-
-cd mapper/parser
-
-python tdg-compile.py -h
-
-
-## Some examples: ##
-
-Compiling L2L3Simple to RMT using FFD heuristic-
-
-python tdg-compile.py -c RmtFfdCompiler-16 -p ProgramL2L3Simple -s RmtReal32 -r RmtPreprocess --log_level INFO
-
-Compiling L2L3Simple to RMT using ILP-
-
+# Compiling L2L3Simple to RMT using ILP-
 python tdg-compile.py -c RmtIlpCompiler-020 -p ProgramL2L3Simple -s RmtReal32 -r RmtPreprocess --log_level INFO
 
-Compiling DdSmall (smaller version of L2L3Simple) to FlexPipe using heuristic-
-
-python tdg-compile.py -c FlexpipeLptCompiler -p ProgramDdSmall -s FlexpipeReal -r FlexpipePreprocess --log_level INFO
-
-Compiling DdSmall (smaller version of L2L3Simple) to FlexPipe using ILP-
-
-python tdg-compile.py -c FlexpipeIlpCompiler -p ProgramDdSmall -s FlexpipeReal -r FlexpipePreprocess --log_level INFO
-
-Compiling a P4 program /Users/lav/p4factory/targets/dc_example/p4src/dc_example.p4 to RMT using FFD heuristic
-
+# Compiling a P4 program /Users/lav/p4factory/targets/dc_example/p4src/dc_example.p4 to RMT using FFD heuristic
 python p4-compile.py -p /Users/lav/p4factory/targets/dc_example/p4src/dc_example.p4 -c RmtFfdCompiler-16  -s RmtReal32 -r RmtPreprocess
 
-Compiling example P4 program mapper/p4_programs/l2l3_nsdi/p4src/l2l3_nsdi.p4
-python p4-compile.py -p mapper/p4_programs/l2l3_nsdi/p4src/l2l3_nsdi.p4 -c RmtFfdCompiler-16  -s RmtReal32 -r RmtPreprocess 
-
-## Using ILP ##
-
-You need to install CPLEX and pycpx (see ilp_setup.txt) first.
+```
