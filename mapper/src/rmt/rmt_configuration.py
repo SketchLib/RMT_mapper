@@ -375,56 +375,41 @@ class RmtConfiguration:
         pass
         
 
-    def getColorsFromTableGroups(self, tableGroups):
+    def getColorsForTables(self):
+        """
+        Fills in self.logColors, a map from table index to color info (HEX, tuple)
+        """
         logColors = {}
-        index = 1
-        self.colorNames = {}
-        f = open("colors.txt", "r")
+
+        colors = []
+        f = open("simple-colors.txt", "r")
         for line in f:
             words = line.split()
             if "white" in words[0].lower():
                 continue
-            self.colorNames[words[1]] = words[0]
+            colors.append((words[0], words[1]))
             pass
-        colors = sorted(self.colorNames.keys())
+
+        # colors is a list of color hex, name tuples sorted by name
+        colors = sorted(colors, key=lambda tup:tup[1])
         random.seed(10)
         random.shuffle(colors)
-        numColors = min(len(colors), len(tableGroups.keys()))
-        groupColors = {}
-        colorGroups = {}
-        for code in self.colorNames.keys():
-            colorGroups[self.colorNames[code]] = []
-            pass
-        for group in tableGroups.keys():
-            groupName = "%s:%s" % (group, str(tableGroups[group]))
+        numColors = min(len(colors), len(self.program.names))
+
+        index = 1
+        self.logColors = {}
+        for log in range(len(self.program.names)):
             colorIndex = (index + 1)%len(colors)
             color = colors[index%numColors]
-            colorName = self.colorNames[color]
-            groupColors[groupName] = colorName
-            # group not groupName
-            colorGroups[colorName].append(group)
-            for table in tableGroups[group]:
-                logColors[self.program.names.index(table)] = color
-                pass
+            self.logColors[log] = color
             index += 1
             pass
 
         for table in self.program.names:
             index = self.program.names.index(table)
-            code = logColors[index]
+            color = self.logColors[index]
             #print "%s: %s" % (table, code)
             pass
-        """
-        for d in [groupColors, colorGroups, logColors]:
-            print "------"
-            for k in sorted(d.keys()):
-                if len(d[k]) > 0:
-                    print "%s: %s" % (k, str(d[k]))
-                    pass
-                pass
-            pass
-        """
-        return {'logColors': logColors, 'colorGroups': colorGroups, 'groupColors': groupColors}
         pass
 
     def showDict(self, d):
@@ -445,110 +430,231 @@ class RmtConfiguration:
             pass
         return string
         
-    def showPic(self, filename, prefix, tableGroups = {}, annotate=False):
+    def showPic(self, filename, prefix):
+        """
+        Output a picture of the configuration to a file called @prefix@filename
+        """
         xLeft = 0
         yTop = 0
         xRight = 0
         yBottom = 0
 
         rect = {}
-        if len(tableGroups) == 0:
-            tableGroups = {}
-            for name in self.program.names: 
-                tableGroups[name] = [name]
+
+        self.getColorsForTables()
+
+        # Find last stage that has match/ action blocks in TCAM/ SRAM
+        maxStage = -1
+        for st in range(self.switch.numStages):
+            numBlocks = sum([round(self.blocks[st][log][entryType])
+                             for mem in self.switch.memoryTypes
+                             for log in range(self.program.MaximumLogicalTables)
+                             for entryType in self.switch.typesIn[mem]])
+            if (numBlocks > 0):
+                maxStage = st
                 pass
             pass
-        colors = self.getColorsFromTableGroups(tableGroups)
-        logColors = colors['logColors']
-        subplots = {}
-        memoryTypes = sorted(self.switch.memoryTypes, reverse=True)
-        numSubplots = len(memoryTypes)
-        fig = plt.figure(1)
-        for i in range(numSubplots):
-            subplots[memoryTypes[i]] = fig.add_subplot(numSubplots,1,i)
-            pass
-
-
-        tablesPerStage = {}
         
-        self.logger.debug(self.switch.memoryTypes)
-        for mem in self.switch.memoryTypes:
-            tablesPerStage[mem] = []
-            self.logger.debug("In memory: " + mem)
+        if (maxStage == -1):
+            self.logger.warn("No match/ action blocks in any stage. Not printing picture.")
+            return
 
-            ax = subplots[mem]
-            rect[mem] = [[] for log in range(self.program.MaximumLogicalTables)]
-            maxY = self.switch.depth[mem] * self.switch.numBlocks[mem][0]
-            minY = 0
-            minX = 0
-            maxX = self.switch.width[mem] * self.switch.numStages
-            ax.set_xlim([minX,maxX])
-            ax.set_ylim([minY,maxY])
+        # There is one sub plot for each memory type in each figure
+        # Show up to 10 stages per figure
+
+        numFigures = int(math.ceil(maxStage/10.0))
+        
+        subplots = {}
+        memoryTypes = sorted(self.switch.memoryTypes)
+        numSubplots = len(memoryTypes) # for memory blocks, legend subplot next to it
+
+        for figNum in range(numFigures):
+            fig = plt.figure(figNum+1)
+            subplots[figNum] = {}
+            for i in range(len(memoryTypes)):
+                mem = memoryTypes[i]
+                subplots[figNum][mem] =\
+                    fig.add_subplot(numSubplots,2,i*len(memoryTypes)+1, xticks=[], yticks=[])
+                subplots[figNum]['legend-%s'%(mem)] =\
+                    fig.add_subplot(numSubplots,2,i*len(memoryTypes)+2, frame_on=False, xticks=[], yticks=[])
+                pass
+            pass
+        
+        
+        tablesPerStage = {}
+
+        # Maybe show 20 stages per figure?
+
+        # examples of other entry types (action..) to
+        # refer to in legend
+        otherPatches = {}
+        
+        for figNum in range(numFigures):
+            startStage = figNum * 10
+            endStage = min(startStage + 10 - 1, maxStage)
+            numStages = endStage - startStage + 1
             
-            for st in range(self.switch.numStages):
-                tablesPerStage[mem].append([])
-                xLeft = st * self.switch.width[mem]
-                ax.add_line(matplotlib.lines.Line2D([xLeft,xLeft],[minY,maxY], lw=1, color='k'))
-                startBlock = 0
-                for log in range(self.program.MaximumLogicalTables):
-                    totalMemBlocks = 0
-                    for thing in self.switch.typesIn[mem]:
-                        numThingBlocks = self.blocks[st][log][thing]
-                        color = self.typeColor[thing]
-                        totalMemBlocks += numThingBlocks
-                        if thing in self.switch.memoryTypes:
-                            color = logColors[log]
-                            pass
-                        
-                        if numThingBlocks > 0:
-                            yTop = maxY - startBlock * self.switch.depth[mem] # e.g., Row 0 at y=1000
-                            height = numThingBlocks * self.switch.depth[mem]
-                            yBottom = yTop - height
-                            width = self.switch.width[mem]
-                            patch = matplotlib.patches.Rectangle((xLeft, yBottom),\
+            self.logger.debug(self.switch.memoryTypes)
+            tables = {}
+            for mem in self.switch.memoryTypes:
+                tables[mem] = {}
+                self.logger.debug("In memory: " + mem)
+                
+                ax = subplots[figNum][mem]
+                rect[mem] = [[] for log in range(self.program.MaximumLogicalTables)]
+            # Each unit on the Y-axis corresponds to one row of a memory block.
+                maxY = self.switch.depth[mem] * self.switch.numBlocks[mem][0]
+                minY = 0
+                minX = 0
+            # Each unit on the X-axis corresponds to one bit of a memory block.
+                maxX = self.switch.width[mem] * 10
+                #margin = 1000
+                ax.set_xlim([minX,maxX])
+                ax.set_ylim([minY,maxY])
+                for st in range(startStage, endStage+1):
+                    # tablesPerStage[mem].append([])
+                    xLeft = (st-startStage) * self.switch.width[mem]
+                    ax.add_line(matplotlib.lines.Line2D([xLeft,xLeft],[minY,maxY], lw=1, color='k'))
+                # Block number where new table starts (all blocks in stage in one column in figure)
+                    startBlock = 0
+                    for log in range(self.program.MaximumLogicalTables):
+                        totalMemBlocks = 0
+                        for entryType in self.switch.typesIn[mem]:
+                            numEntryTypeBlocks = self.blocks[st][log][entryType]
+                            totalMemBlocks += numEntryTypeBlocks
+                            
+                            color = self.typeColor[entryType]
+                            if entryType in self.switch.memoryTypes:
+                                color = self.logColors[log][1]
+                                colorName = self.logColors[log][0]
+                                pass
+
+                        # add a patch in stage for log blocks of entryType in mem
+                            if numEntryTypeBlocks > 0:
+                                name = self.program.names[log]
+                                if name not in tables[mem]:
+                                    tables[mem][name] = {'start': st, 'color':colorName, 'end': st}
+                                    pass
+                                else:
+                                    tables[mem][name]['end'] = st
+                                    pass
+
+                                if entryType not in tables[mem][name]:
+                                    tables[mem][name][entryType] = 0
+                                    pass
+
+                                
+                                tables[mem][name][entryType] += numEntryTypeBlocks
+
+                                yTop = maxY - startBlock * self.switch.depth[mem] # e.g., Row 0 at y=1000
+                                height = numEntryTypeBlocks * self.switch.depth[mem]
+                                yBottom = yTop - height
+                                width = self.switch.width[mem]
+                                patch = matplotlib.patches.Rectangle((xLeft, yBottom),\
                                                                      width,height,\
                                                                      color=color)
-                            ax.add_patch(patch)
-                            pass
-                        startBlock += numThingBlocks
-                        pass
 
-                    if totalMemBlocks > 0:
-                        text = self.program.names[log]
-                        if totalMemBlocks >= 6:
-                            text += " (%s)" % self.colorNames[logColors[log]]
+                                if 'patch' not in tables[mem][name]:
+                                    tables[mem][name]['patch'] = patch                                        
+                                    pass
+                                if entryType == mem:
+                                    tables[mem][name]['patch'] = patch
+                                    pass
+                                elif entryType not in otherPatches:
+                                    otherPatches[entryType] = patch
+                                    pass
+                                ax.add_patch(patch)
+                                pass
+                        
+                            startBlock += numEntryTypeBlocks
                             pass
-                        tablesPerStage[mem][st].append(text)
+                        pass # ends for log in 
+                    
+                # add a line between st and st-1, and annotate stage st (starting at 1)
+                    startOfStage = xLeft 
+                    ax.annotate(str(st+1), (startOfStage+5, minY) , color='r')
+                    ax.add_line(matplotlib.lines.Line2D([startOfStage, startOfStage],[minY,maxY], lw=5, color='k'))
+                    pass                
+
+                if (endStage == maxStage):
+                    endOfMaxStage = (maxStage+1-startStage) * self.switch.width[mem]
+                    ax.add_line(matplotlib.lines.Line2D([endOfMaxStage, endOfMaxStage],[minY,maxY], lw=5, color='k'))
+                    pass
+
+                self.logger.debug("Done with " + mem)
+                pass
+
+            for mem in self.switch.memoryTypes:
+                ax = subplots[figNum]['legend-%s'%mem]
+                ax.set_xlim([0,400])
+                ax.set_ylim([0, 300])
+
+                patches = []
+                labels = []
+
+                for t in tables[mem]:
+                    if mem not in tables[mem][t]:
+                        tables[mem][t][mem] = 0
                         pass
                     pass
-                startOfStage = xLeft
-                ax.annotate(str(st), (startOfStage, minY) , color='r')
-                ax.add_line(matplotlib.lines.Line2D([startOfStage, startOfStage],[minY,maxY], lw=5, color='k'))
-                pass                
-            self.logger.debug("Done with " + mem)
+
+                listTables = sorted(tables[mem].keys(), key= lambda name: tables[mem][name][mem], reverse=True)
+                numTables = 0
+                for t in listTables:
+                    if (tables[mem][t][mem]==0):
+                        continue
+                    entryTypes = sorted([s for s in self.switch.typesIn[mem] if s in tables[mem][t].keys()])
+                    blocksStr = ", ".join(\
+                        ["%s %s" % (tables[mem][t][entryType], entryType)\
+                             for entryType in entryTypes if tables[mem][t][entryType] > 0])
+                    stageStr = "%2d" % (tables[mem][t]['start']+1)
+                    if tables[mem][t]['start'] < tables[mem][t]['end']:
+                        stageStr += "-%2d" % (tables[mem][t]['end']+1)
+                        pass
+                    if (len(labels) < 12):
+                        patches.append(tables[mem][t]['patch'])
+                        labels.append("%20s (%s) in %s" % (t, blocksStr, stageStr))
+                        pass
+                    numTables += 1
+                    pass
+                if mem == 'sram':
+                    for other in otherPatches:
+                        patches.append(otherPatches[other])
+                        labels.append("%12s blocks" % other)
+                        pass
+                    pass
+                mainStr = "%s Blocks in stages %2d-%2d" % (mem.upper(), startStage+1, endStage+1)
+                if (numTables > len(labels)):
+                    ax.text(0, 0, " (showing legend for %d of %d tables)" % (len(labels), numTables), fontsize=6)
+                    pass
+                ax.set_title(mainStr)
+                ax.legend(patches, labels, prop={'size':6})
+                pass
+                
+            
+            self.logger.debug("Done with stages through " + str(endStage))
             pass
+    
+#         i = 2
+#         for mem in self.switch.memoryTypes:
+#             figText = plt.figure(i)
+#             i += 1
+#             ax = figText.add_subplot(111)
+#             tablesPerStagePara = textwrap.fill("%s: " % mem.upper() +\
+#                                                    self.showList(tablesPerStage[mem]))
+#             ax.text(0, 0.5, tablesPerStagePara, fontsize=10)
+#             pass
 
-        i = 2
-        for mem in self.switch.memoryTypes:
-            figText = plt.figure(i)
-            i += 1
-            ax = figText.add_subplot(111)
-            tablesPerStagePara = textwrap.fill("%s: " % mem.upper() +\
-                                                   self.showList(tablesPerStage[mem]))
-            ax.text(0, 0.5, tablesPerStagePara, fontsize=10)
-            pass
+#         figText = plt.figure(i)
+#         ax = figText.add_subplot(111)
+#         colorGroupsPara = textwrap.fill("LEGEND: " + self.showDict(colors['colorGroups']))
 
-        figText = plt.figure(i)
-        ax = figText.add_subplot(111)
-        colorGroupsPara = textwrap.fill("LEGEND: " + self.showDict(colors['colorGroups']))
-
-        ax.text(0, 0.5, colorGroupsPara, fontsize=10)
-        numFigs = i
-        
+#         ax.text(0, 0.5, colorGroupsPara, fontsize=10)
+#         numFigs = i
         t = datetime.now()
         picFile = prefix + filename + ".pdf"
         pp = PdfPages(picFile)
-        for i in range(1,numFigs+1):
+        for i in range(1,numFigures+1):
             pp.savefig(i)
             pass
         pp.close()
