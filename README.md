@@ -84,6 +84,5 @@ You can also explore different compiler configurations by describing your compil
 python tdg-compile.py -c RmtIlpCompiler-020 -p ProgramL2L3Simple -s RmtReal32 -r RmtPreprocess --log_level INFO
 
 # Compiling a P4 program ~/p4factory/targets/switch/p4src/switch.p4 to a 14-stage RMT using ILP, optimizing for power
-python p4-compile.py -p /Users/lav/p4factory/targets/dc_example/p4src/dc_example.p4 -c RmtFfdCompiler-16  -s RmtReal32 -r RmtPreprocess
- python p4-compile.py -p ~/p4factory/targets/switch/p4src/switch.p4 -c RmtIlpCompiler-020 -s RmtReal14 -r RmtPreprocess --picture_prefix ./ --compiler_objectiveStr powerForRamsAndTcams
+python p4-compile.py -p ~/p4factory/targets/switch/p4src/switch.p4 -c RmtIlpCompiler-020 -s RmtReal14 -r RmtPreprocess --picture_prefix ./ --compiler_objectiveStr powerForRamsAndTcams
 ```
