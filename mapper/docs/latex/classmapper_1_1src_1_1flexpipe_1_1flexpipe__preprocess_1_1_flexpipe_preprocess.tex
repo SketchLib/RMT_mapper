@@ -1,0 +1,74 @@
+\hypertarget{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess}{}\section{mapper.\+src.\+flexpipe.\+flexpipe\+\_\+preprocess.\+Flexpipe\+Preprocess Class Reference}
+\label{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess}\index{mapper.\+src.\+flexpipe.\+flexpipe\+\_\+preprocess.\+Flexpipe\+Preprocess@{mapper.\+src.\+flexpipe.\+flexpipe\+\_\+preprocess.\+Flexpipe\+Preprocess}}
+\subsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\hypertarget{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess_a6116d0e9c4fe612a0919f3928374318d}{}def {\bfseries \+\_\+\+\_\+init\+\_\+\+\_\+} (self)\label{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess_a6116d0e9c4fe612a0919f3928374318d}
+
+\item 
+def \hyperlink{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess_ada22fa3f9028aebd76f1f2a0c28051d8}{blocks\+In\+Stage} (self, mem, st)
+\item 
+def \hyperlink{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess_acfc43707e898746719bde300722c7c29}{set\+Use\+Memory} (self)
+\item 
+\hypertarget{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess_a85caf8510392b73bd628dbe9df590f7b}{}def {\bfseries preprocess} (self, program, switch)\label{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess_a85caf8510392b73bd628dbe9df590f7b}
+
+\end{DoxyCompactItemize}
+\subsection*{Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+\hypertarget{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess_a679e0258d4408d6bd1004810e90778a1}{}{\bfseries logger}\label{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess_a679e0258d4408d6bd1004810e90778a1}
+
+\item 
+\hypertarget{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess_ad78b954a892042d9064f2d49a96f2eb5}{}{\bfseries use}\label{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess_ad78b954a892042d9064f2d49a96f2eb5}
+
+\item 
+\hypertarget{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess_aeb88c7c16fdd91ea414358dba1c9b643}{}{\bfseries switch}\label{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess_aeb88c7c16fdd91ea414358dba1c9b643}
+
+\item 
+\hypertarget{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess_a013b7e54cd194a954ca2c30f3318051e}{}{\bfseries program}\label{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess_a013b7e54cd194a954ca2c30f3318051e}
+
+\item 
+\hypertarget{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess_a972ada42d714b0591105218423979d71}{}{\bfseries pf\+Blocks}\label{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess_a972ada42d714b0591105218423979d71}
+
+\item 
+\hypertarget{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess_af547d867df37a92d67b2416dd0697b4d}{}{\bfseries toposort\+Order\+Stages}\label{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess_af547d867df37a92d67b2416dd0697b4d}
+
+\end{DoxyCompactItemize}
+
+
+\subsection{Detailed Description}
+\begin{DoxyVerb}Preprocessor module that precomputes information such as valid packing units
+for compiler to use.
+\end{DoxyVerb}
+ 
+
+\subsection{Member Function Documentation}
+\hypertarget{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess_ada22fa3f9028aebd76f1f2a0c28051d8}{}\index{mapper\+::src\+::flexpipe\+::flexpipe\+\_\+preprocess\+::\+Flexpipe\+Preprocess@{mapper\+::src\+::flexpipe\+::flexpipe\+\_\+preprocess\+::\+Flexpipe\+Preprocess}!blocks\+In\+Stage@{blocks\+In\+Stage}}
+\index{blocks\+In\+Stage@{blocks\+In\+Stage}!mapper\+::src\+::flexpipe\+::flexpipe\+\_\+preprocess\+::\+Flexpipe\+Preprocess@{mapper\+::src\+::flexpipe\+::flexpipe\+\_\+preprocess\+::\+Flexpipe\+Preprocess}}
+\subsubsection[{blocks\+In\+Stage(self, mem, st)}]{\setlength{\rightskip}{0pt plus 5cm}def mapper.\+src.\+flexpipe.\+flexpipe\+\_\+preprocess.\+Flexpipe\+Preprocess.\+blocks\+In\+Stage (
+\begin{DoxyParamCaption}
+\item[{}]{self, }
+\item[{}]{mem, }
+\item[{}]{st}
+\end{DoxyParamCaption}
+)}\label{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess_ada22fa3f9028aebd76f1f2a0c28051d8}
+\begin{DoxyVerb}Returns indices of mem blocks in stage st
+Indexing starts from first mem block in the first
+stage and goes on till the last mem block over
+all stages.
+\end{DoxyVerb}
+ \hypertarget{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess_acfc43707e898746719bde300722c7c29}{}\index{mapper\+::src\+::flexpipe\+::flexpipe\+\_\+preprocess\+::\+Flexpipe\+Preprocess@{mapper\+::src\+::flexpipe\+::flexpipe\+\_\+preprocess\+::\+Flexpipe\+Preprocess}!set\+Use\+Memory@{set\+Use\+Memory}}
+\index{set\+Use\+Memory@{set\+Use\+Memory}!mapper\+::src\+::flexpipe\+::flexpipe\+\_\+preprocess\+::\+Flexpipe\+Preprocess@{mapper\+::src\+::flexpipe\+::flexpipe\+\_\+preprocess\+::\+Flexpipe\+Preprocess}}
+\subsubsection[{set\+Use\+Memory(self)}]{\setlength{\rightskip}{0pt plus 5cm}def mapper.\+src.\+flexpipe.\+flexpipe\+\_\+preprocess.\+Flexpipe\+Preprocess.\+set\+Use\+Memory (
+\begin{DoxyParamCaption}
+\item[{}]{self}
+\end{DoxyParamCaption}
+)}\label{classmapper_1_1src_1_1flexpipe_1_1flexpipe__preprocess_1_1_flexpipe_preprocess_acfc43707e898746719bde300722c7c29}
+\begin{DoxyVerb}Based on table's match type e.g., exact/ ternary etc., determine
+which switch memory types it can use e.g., SRAM and TCAM/ TCAM etc.
+\end{DoxyVerb}
+ 
+
+The documentation for this class was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+src/flexpipe/flexpipe\+\_\+preprocess.\+py\end{DoxyCompactItemize}
