@@ -68,7 +68,7 @@ For each target, we have a compiler, switch, preprocessor,
 and configuration module. We also have a program module that defines the annotated TDG format
 for a program, and different use cases based on this.
 The compiler takes as in put an instance of the program, switch and preprocessor module
-and returns a configuration module, populated with the switch configuration it found.
+and returns a configuration module, populated with the switch configuration it found. Documentation in switch-compiler/mapper/docs/latex/refman.pdf
 
 You can play around with different switch parameters by describing your own switch module in config / switch00.txt. 
 
