@@ -15,8 +15,12 @@ from collections import OrderedDict, defaultdict
 
 logger = logging.getLogger(__name__)
 
-defaultMatch = {'width':32, 'match_type':'exact', 'action_widths':[0], 'num_entries':1024, 'num_action_words':1, 'fixed_action_data_per_stage':False}
-defaultCondition = {'width':1, 'match_type':'gw', 'action_widths':[0], 'num_entries':12, 'num_action_words':1, 'fixed_action_data_per_stage':False}
+# defaultMatch = {'width':32, 'match_type':'exact', 'action_widths':[0], 'num_entries':1024, 'num_action_words':1, 'fixed_action_data_per_stage':False}
+# defaultCondition = {'width':1, 'match_type':'gw', 'action_widths':[0], 'num_entries':12, 'num_action_words':1, 'fixed_action_data_per_stage':False}
+
+# hun_log
+defaultMatch = {'width':32, 'match_type':'exact', 'action_widths':[0], 'num_entries':0, 'num_action_words':1, 'fixed_action_data_per_stage':False}
+defaultCondition = {'width':1, 'match_type':'gw', 'action_widths':[0], 'num_entries':0, 'num_action_words':1, 'fixed_action_data_per_stage':False}
 
 def get_tables(graphs, pipeline_option=INGRESS_ONLY):
     defaultStr = ""
@@ -91,6 +95,47 @@ def get_tables(graphs, pipeline_option=INGRESS_ONLY):
                            for action_args in width]
         return total_width
 
+    # hun_log
+    def get_hash_dist_unit(p4_table):
+        hash_exist = 0
+        register_exist = 0
+
+        for action in p4_table.actions:
+            for e in action.call_sequence:
+                if str(e[0]) == 'p4_action.modify_field_with_hash_based_offset':
+                    # hash_exist = 1
+                    return 1
+                if str(e[0]) == 'p4_action.register_read':
+                    # register_exist = 1
+                    return 1
+                if str(e[0]) == 'p4_action.register_write':
+                    # register_exist = 1
+                    return 1
+        return 0
+        # return hash_exist + register_exist
+
+    def get_salu(p4_table):
+        for action in p4_table.actions:
+            for e in action.call_sequence:
+                if str(e[0]) == 'p4_action.register_read':
+                    return 1
+                if str(e[0]) == 'p4_action.register_write':
+                    return 1
+        return 0
+
+    def get_register_size(p4_table):
+        for register in p4_table.attached_registers:
+            # print(register.name, register.instance_count, register.width)
+            return register.instance_count
+        return 0
+
+    def get_register_width(p4_table):
+        for register in p4_table.attached_registers:
+            # print(register.name, register.instance_count, register.width)
+            return register.width
+        return 0
+
+
     tablesInGraph = {}
     for graphName in graphs:
         tablesInGraph[graphName] = [table.name for table in graphs[graphName]._nodes.values()]
@@ -134,7 +179,12 @@ def get_tables(graphs, pipeline_option=INGRESS_ONLY):
                    'select_size':0, \
                    'next_table_count': len(p4_table.next_),\
                    'action_count': len(p4_table.actions),\
-                   'num_action_words':None}
+                   'num_action_words':None,
+                   'hash_dist_unit': get_hash_dist_unit(p4_table),
+                   'salu': get_salu(p4_table),
+                   'register_size': get_register_size(p4_table),
+                   'register_width': get_register_width(p4_table),
+                   }
                   for p4_table_name, p4_table in hlir.p4_tables.items()\
                   if p4_table_name in tablesInAllGraphs]
 
@@ -173,7 +223,12 @@ def get_tables(graphs, pipeline_option=INGRESS_ONLY):
                     'select_size':0, \
                     'next_table_count': 2, \
                     'action_count': 2,\
-                    'num_action_words':defaultCondition['num_action_words']} \
+                    'num_action_words':defaultCondition['num_action_words'], \
+                    'hash_dist_unit': 0, \
+                    'salu': 0, \
+                    'register_size': 0, \
+                    'register_width':0, \
+                    } \
                     for (_, hlir_name) in enumerate(hlir.p4_conditional_nodes) ]
     logger.warning("All condition tables have default settings: %s" % defaultCondition)
 
@@ -197,14 +252,18 @@ def get_lists(tables):
         pass
 
     for table in tables:
+        # print(table)
         for k in table.keys():
             value = table[k]
+            # print(k, table[k])
+
             if value == None:
                 value = defaultMatch[k]
                 tables_with_default[k].append(table['name'])
                 pass
             lists[k].append(value)
             pass
+        # exit(1)
         pass
     logger.info("total width %d" % (sum(lists['width'])))
     for k in tables_with_default.keys():
@@ -216,7 +275,7 @@ def get_lists(tables):
 
     return lists['name'], lists['width'], lists['action_widths'], lists['match_type'],\
         lists['num_entries'], lists['num_action_words'], lists['fixed_action_data_per_stage'],\
-        lists['ingress'], lists['select_size'], lists['next_table_count'], lists['action_count']
+        lists['ingress'], lists['select_size'], lists['next_table_count'], lists['action_count'], lists['hash_dist_unit'], lists['salu'], lists['register_size'], lists['register_width']
     
 
 def get_dependencies(graphs, pipeline_option=INGRESS_ONLY):
@@ -318,7 +377,7 @@ def getProgramInfo(input_hlir, loglevel, pipeline_option=INGRESS_ONLY):
      
     table_names, widths, action_widths, match_types, num_entries,\
         num_action_words, fixed_action_data_per_stage, in_ingress,\
-        select_size, next_table_count, action_count = get_lists(new_tables)
+        select_size, next_table_count, action_count, hash_dist_unit, salu, register_size, register_width = get_lists(new_tables)
 
     programInfo = {}
     programInfo["table_names"] = table_names
@@ -326,6 +385,10 @@ def getProgramInfo(input_hlir, loglevel, pipeline_option=INGRESS_ONLY):
     programInfo["action_widths"] = action_widths
     programInfo["match_types"] = match_types
     programInfo["num_entries"] = num_entries
+    programInfo["hash_dist_unit"] = hash_dist_unit
+    programInfo["salu"] = salu
+    programInfo["register_size"] = register_size
+    programInfo["register_width"] = register_width
 
     def getDepsByIndex(depsByN):
         depsByIndex = []

@@ -138,9 +138,10 @@ class RmtConfiguration:
             pass
         totalWordsNeeded = sum(self.program.logicalTables)
         self.totalUnassignedWords = int(round(totalUnassignedWords))
-        self.logger.info("Total words unassigned %d out of %d (%.1f p.c.)" %\
-                     (totalUnassignedWords, sum(self.program.logicalTables),\
-                      float(totalUnassignedWords)/totalWordsNeeded))
+        # hun_log
+        # self.logger.info("Total words unassigned %d out of %d (%.1f p.c.)" %\
+        #              (totalUnassignedWords, sum(self.program.logicalTables),\
+        #               float(totalUnassignedWords)/totalWordsNeeded))
         pass
 
     def checkWordsPerTable(self):
@@ -175,9 +176,7 @@ class RmtConfiguration:
                 pass
             pass
         totalWordsNeeded = sum(self.program.logicalTables)
-        self.logger.info("Total words unassigned %d out of %d (%.1f p.c.)" %\
-                     (self.totalUnassignedWords, sum(self.program.logicalTables),\
-                      float(self.totalUnassignedWords)/totalWordsNeeded))
+        # self.logger.info("Total words unassigned %d out of %d (%.1f p.c.)" % (self.totalUnassignedWords, sum(self.program.logicalTables), float(self.totalUnassignedWords)/totalWordsNeeded))
         pass
     
     def configure(self, layout):
@@ -904,14 +903,11 @@ class RmtConfiguration:
         for i in range(rows):
             if (len(names) > 0):
                 string += (names[i].ljust(10) + "\t")
-		for arr in arrs:
-                    if int(round(arr[i]))/1000 >= 1:
-                        string += (str(int(round(arr[i]))/1000) + "k\t")
-                    else:
-                        string += (str(int(round(arr[i]))) + "\t")
-                    pass
-                pass
-            pass
+        for arr in arrs:
+            if int(round(arr[i]))/1000 >= 1:
+                string += (str(int(round(arr[i]))/1000) + "k\t")
+            else:
+                string += (str(int(round(arr[i]))) + "\t")
             string += "\n"
         self.logger.info("(%s)\n" % self.version + string)
         pass

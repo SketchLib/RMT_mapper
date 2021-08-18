@@ -12,7 +12,8 @@ class Program:
     def __init__(self,  logicalTables, logicalTableWidths=[],\
                  logicalTableActionWidths=[], logicalMatchDependencyList=[],\
                  logicalActionDependencyList=[], logicalSuccessorDependencyList=[],\
-                 matchType=[], names=[]):
+                 matchType=[], names=[],
+                 hashDistUnitList=[], saluList=[], registerSizeList=[], registerWidthList=[]):
         self.logger = logging.getLogger(__name__)
         """
         logicalTables(nx1) - list of number of entries indexed by logical table number
@@ -74,7 +75,13 @@ class Program:
         self.logicalTableActionWidths = logicalTableActionWidths
 
         self.matchType = matchType
-        pass
+
+        self.hashDistUnitList = np.matrix(hashDistUnitList).T
+        self.saluList = np.matrix(saluList).T
+        self.registerSizeList = np.matrix(registerSizeList).T
+        self.registerWidthList = np.matrix(registerWidthList).T
+        self.registerBitSizeList = np.multiply(self.registerSizeList, self.registerWidthList)
+        self.registerBlockList = np.int32(np.ceil(np.float32(self.registerBitSizeList)/(4096*32))) + 1
 
     def showProgramInfo(self):
         """ Show program table sizes and dependencies """
@@ -148,7 +155,6 @@ class Program:
         #self.logger.debug(infoStr)
 
         self.logger.info('%30s%4s%8s%5s%20s' % ('tablename',  'T', '#M-E', 'M-W', 'A-W'))
-    
         for i, tablename in enumerate(table_names):
             ostr = '%30s%4s%8d%5d%20s' %\
                 (tablename,\
@@ -162,3 +168,16 @@ class Program:
             pass
         pass
             
+        print('%30s%4s%8s%5s%20s' % ('tablename',  'T', '#M-E', 'M-W', 'A-W'))
+        for i, tablename in enumerate(table_names):
+            ostr = '%30s%4s%8d%5d%20s' %\
+                (tablename,\
+                     match_types[i][0],\
+                     num_entries[i],\
+                     widths[i],\
+                     str(sorted(action_widths[i],\
+                                    reverse=True)))
+            
+            print(ostr)
+            pass
+        pass

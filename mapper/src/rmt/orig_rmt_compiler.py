@@ -30,6 +30,13 @@ from datetime import datetime
 import time
 import logging
 
+hun_extended = True
+
+hun_add_logical_table_ids = True
+hun_correct_table_ids = True
+
+hun_start_end_same = True
+
 class RmtIlpCompiler:
     def __init__(self, relativeGap, greedyVersion,objectiveStr='maximumStage',\
                      emphasis=0, timeLimit=None, treeLimit=None,\
@@ -121,132 +128,115 @@ class RmtIlpCompiler:
     def P(self, l, m):
         return l - m
 
-    def actionAssignmentConstraint(self):
+    """ Constraints """
+    # word
+    def actionAssignmentConstraint(self): # double checked
         """
         How many action words we can fit.
         """
+        # print("action widths") all 0
         for log in range(self.logMax):
+            # print(self.preprocess.actionWidths[log])
             for st in range(self.stMax):
                 if self.preprocess.actionWidths[log] == 0:
+                    # print("action width 0")
                     self.m.constrain(self.word['action'][log,st] <= 0)
-                    pass
                 else:
-                    self.m.constrain(self.word['action'][log,st] >=\
-                                         self.word['sram'][log,st] +\
-                                         self.word['tcam'][log,st])
-                    pass
-                pass
-            pass
+                    print("action width not 0")
+                    self.m.constrain(self.word['action'][log,st] >= self.word['sram'][log,st] + self.word['tcam'][log,st])
+        # exit(1)
         self.dictNumConstraints['log*st'] += 1
-        pass
 
-    def capacityConstraint(self):
+    # block
+    def capacityConstraint(self): # double checked
         """ Don't use more memories than available in each stage for action, match"""
         # tcam match entries ('tcam') is the only thing that uses TCAM
         for mem in self.switch.memoryTypes:
-            self.m.constrain(self.block[mem].T * np.ones(self.logMax)\
-                                 <= self.switch.numBlocks[mem])
+            # print(mem)
+            # print(self.switch.numBlocks[mem])
+            self.m.constrain(self.block[mem].T * np.ones(self.logMax) <= self.switch.numBlocks[mem])
             pass
         self.dictNumConstraints['mem*st'] += 1
-
+        # exit(1)
         # action, sram match entries are two 'things' that use SRAM
         mem = 'sram'
-        self.m.constrain(sum([self.block[thing].T for thing in self.switch.typesIn[mem]])
-                             * np.ones(self.logMax)\
-                                 <= self.switch.numBlocks[mem])
+        self.m.constrain(sum([self.block[thing].T for thing in self.switch.typesIn[mem]]) * np.ones(self.logMax) <= self.switch.numBlocks[mem])
         self.dictNumConstraints['st'] += 1
-        pass
 
 
-    def wordLayoutConstraint(self):
+    # block
+    # word
+    # layout
+    def wordLayoutConstraint(self): # double checked
         """ Relating number of packing units to number of blocks used/
         words per row fit
         """
         for mem in self.switch.allTypes:
+            # print(mem)
+            # print("layout")
+            # print(self.preprocess.layout[mem]) action -> [0, 0, 0, ...] sram -> [4, 4, 4, ...] tcam -> [1, 1, 1, ...]
+            # print("word")
+            # print(self.preprocess.word[mem]) action -> [0, 0, 0, ...] sram -> [1024, 1024, ...] tcam -> [512, 512, ...]
+            # print(self.preprocess.layout[mem])
+            # print(self.preprocess.word[mem])
             for log in range(self.logMax):
                 for st in range(self.stMax):
-                    self.m.constrain(self.block[mem][log,st] ==\
-                                         self.layout[mem][log*self.stMax+st, :] *\
-                                         self.preprocess.layout[mem][log])
-
-                    self.m.constrain(self.word[mem][log,st] ==\
-                                         self.layout[mem][log*self.stMax+st,:] *\
-                                         self.preprocess.word[mem][log])
-                    pass
-                pass
+                    self.m.constrain(self.block[mem][log,st] == self.layout[mem][log*self.stMax+st, :] * self.preprocess.layout[mem][log])
+                    self.m.constrain(self.word[mem][log,st] == self.layout[mem][log*self.stMax+st,:] * self.preprocess.word[mem][log])
             pass
+        # exit(1)
         self.dictNumConstraints['allMem*log*st'] += 2
-        pass
     
-    def useMemoryConstraint(self):
+    # block
+    def useMemoryConstraint(self): # double checked
         """ assign blocks of logical table to mem only if it's allowed
         e.g., a ternary table can't use SRAM blocks. Preprocessor
         computes what's allowed (self.preprocess.use)"""
-
+        # print(self.blockMax) # 104
+        # exit(1)
         upperBound = self.blockMax * self.stMax
         for mem in self.switch.memoryTypes:
             for log in range(self.logMax):
-                blocksUsedForLog = (self.block[mem][log,:] *\
-                    np.ones((self.stMax)))[0,0]
-                blocksAllowedForLog = (upperBound *\
-                                           self.preprocess.use[mem][log])
+                # print(mem, log, self.preprocess.use[mem][log]) # basically zero or one
+                blocksUsedForLog = (self.block[mem][log,:] * np.ones((self.stMax)))[0,0]
+                blocksAllowedForLog = (upperBound * self.preprocess.use[mem][log])
                 self.m.constrain(blocksUsedForLog <= blocksAllowedForLog)
-                pass
-            pass
+        # exit(1)
         self.dictNumConstraints['mem*log'] += 1
-        pass
     
-    def assignmentConstraint(self):
+    # word
+    def assignmentConstraint(self): # double checked
         """ All match entries must be assigned somewhere in the pipeline.
         """
-        allocatedWords = sum([self.word[mem] for mem in\
-                                  self.switch.memoryTypes])\
-                                  * np.ones(self.stMax)
+        # print(self.program.logicalTables) # num entries
+        # exit(1)
+        allocatedWords = sum([self.word[mem] for mem in self.switch.memoryTypes]) * np.ones(self.stMax)
+
         self.m.constrain(allocatedWords >= self.program.logicalTables)
+
         self.dictNumConstraints['log'] += 1
-        pass
 
-    def pipelineLatencyVariables(self):
-        """ Variables for start and end time of stages"""
-        ub = self.stMax * self.switch.matchDelay
-        ubb = self.stMax * self.switch.matchDelay * self.stMax
-        self.startTimeOfStage =\
-            self.m.new((self.stMax), vtype='real', lb=0, ub=ub,\
-                           name='startTimeOfStage')
-        self.dictNumVariables['st'] += 1
 
-        self.startAllMemTimesStartTimeOfStage =\
-            self.m.new((self.logMax, self.stMax), vtype='real', lb=0, ub = ubb,\
-                           name='startAllMemTimesStartTimeOfStage')
-        self.endAllMemTimesStartTimeOfStage =\
-            self.m.new((self.logMax, self.stMax), vtype='real', lb=0, ub = ubb,\
-                           name='endAllMemTimesStartTimeOfStage')
-        self.dictNumVariables['log*st'] += 2
-
-        pass
-
-    def getStartAllMemTimesStartTimeOfStage(self):
+    # startTimeOfStage
+    # startAllMem
+    # startAllMemTimesStartTimeOfStage
+    def getStartAllMemTimesStartTimeOfStage(self): # double check
         """ Defining product variable StartAllMem x StartTimeOfStage """
         # upper bound of start time of stage 
         upperBound = self.stMax * self.switch.matchDelay * self.stMax
         
         for log in range(self.logMax):
             for st in range(self.stMax):
-                self.m.constrain(self.startAllMemTimesStartTimeOfStage[log, st] <=\
-                                     self.startAllMem[log,st] * upperBound)
-                self.m.constrain(self.startAllMemTimesStartTimeOfStage[log, st] <=\
-                                     self.startTimeOfStage[st] +\
-                                      (1 - self.startAllMem[log,st]) * upperBound)                
-                self.m.constrain(self.startAllMemTimesStartTimeOfStage[log, st] >=\
-                                     self.startTimeOfStage[st] -\
-                                     (1 - self.startAllMem[log,st]) * upperBound)
+                self.m.constrain(self.startAllMemTimesStartTimeOfStage[log, st] <= self.startAllMem[log,st] * upperBound)
+                self.m.constrain(self.startAllMemTimesStartTimeOfStage[log, st] <= self.startTimeOfStage[st] + (1 - self.startAllMem[log,st]) * upperBound)
+                self.m.constrain(self.startAllMemTimesStartTimeOfStage[log, st] >= self.startTimeOfStage[st] - (1 - self.startAllMem[log,st]) * upperBound)
 
-                pass
-            pass
         self.dictNumConstraints['log*st'] += 3
-        pass
 
-    def getEndAllMemTimesStartTimeOfStage(self):
+    # startTimeOfStage
+    # endAllMem
+    # endAllMemTimesStartTimeOfStage
+    def getEndAllMemTimesStartTimeOfStage(self): # double check
         """ Defining product variable endAllMem x StartTimeOfStage """
 
         # Get startTimeOfStageTimesStartAllMem
@@ -255,319 +245,89 @@ class RmtIlpCompiler:
         
         for log in range(self.logMax):
             for st in range(self.stMax):
-                self.m.constrain(self.endAllMemTimesStartTimeOfStage[log, st] <=\
-                                     self.endAllMem[log,st] * upperBound)
-                self.m.constrain(self.endAllMemTimesStartTimeOfStage[log, st] <=\
-                                     self.startTimeOfStage[st] +\
-                                     (1 - self.endAllMem[log,st]) * upperBound)                
-                self.m.constrain(self.endAllMemTimesStartTimeOfStage[log, st] >=\
-                                     self.startTimeOfStage[st] -\
-                                     (1 - self.endAllMem[log,st]) * upperBound)
+                self.m.constrain(self.endAllMemTimesStartTimeOfStage[log, st] <= self.endAllMem[log,st] * upperBound)
+                self.m.constrain(self.endAllMemTimesStartTimeOfStage[log, st] <= self.startTimeOfStage[st] + (1 - self.endAllMem[log,st]) * upperBound)                
+                self.m.constrain(self.endAllMemTimesStartTimeOfStage[log, st] >= self.startTimeOfStage[st] - (1 - self.endAllMem[log,st]) * upperBound)
 
-                pass
-            pass
         self.dictNumConstraints['log*st'] += 3
-        pass
 
-    def checkPipelineLatencyConstraint(self, model):
-        correct = True
-        startAllMemTimesStartTimeOfStage = model[self.startAllMemTimesStartTimeOfStage]
-        endAllMemTimesStartTimeOfStage = model[self.endAllMemTimesStartTimeOfStage]
-        startTimeOfStage = model[self.startTimeOfStage]
-
-        layout = {}
-        layout['sram'] = model[self.layout['sram']]
-        layout['tcam'] = model[self.layout['tcam']]
-        layout['action'] = model[self.layout['action']]
-
-        stageInfo = "\nStart time for model\n"
-        for st in range(self.stMax):
-             stageInfo += " Stage %d: %.1f " % (st, startTimeOfStage[st])
-             tablesThatStart = [log for log in range(self.logMax)\
-                                    if startAllMemTimesStartTimeOfStage[log, st] > 0]
-             tableInfo = {}
-             for log in range(self.logMax):
-                 punits = {}
-                 for thing in ['sram','tcam','action']:
-                     punits[thing] = sum([layout[thing][log*self.stMax+st,pf] for pf in range(self.pfMax[thing])])
-                     pass
-                 tableInfo[log] = ", ".join(["%s: %d" % (t[0], punits[t]) for t in ['sram','tcam','action']])
-                 pass
-
-             stageInfo += "Tables that start in this stage: %s\n" %\
-                 ", ".join(["%s: %s" % (self.program.names[log], tableInfo[log]) for log in tablesThatStart])
-             pass
-        
-        self.logger.debug(stageInfo)
-
-        startTimeOfStartStageOfLog = {}
-        startTimeOfEndStageOfLog = {}
-        for log in range(self.logMax):
-            startTimeOfStartStageOfLog[log] = \
-              sum([startAllMemTimesStartTimeOfStage[log, st] for st in range(self.stMax)])
-            startTimeOfEndStageOfLog[log] = \
-              sum([endAllMemTimesStartTimeOfStage[log, st] for st in range(self.stMax)])
-            pass
-                                       
-        # successor dependency
-        for st in range(1,self.stMax):
-            if not (startTimeOfStage[st] >=\
-                             startTimeOfStage[st-1] + self.switch.successorDelay):
-                roundOkay = (round(startTimeOfStage[st]) >=\
-                             round(startTimeOfStage[st-1]) + self.switch.successorDelay)
-                level = logging.WARNING
-                if not roundOkay:
-                    level = logging.ERROR
-                    pass
-                correct = False
-                self.logger.log(level, "successor dependency constraint on latency violated at %d" % st)
-            pass
-        
-        # match dependency
-        for (log1,log2) in self.program.logicalMatchDependencyList:
-            if not(startTimeOfStartStageOfLog[log2] >=\
-                   startTimeOfEndStageOfLog[log1] + self.switch.matchDelay):
-                roundOkay = (round(startTimeOfStartStageOfLog[log2]) >=\
-                                 round(startTimeOfEndStageOfLog[log1]) + self.switch.matchDelay)
-                level = logging.WARNING
-                if not roundOkay:
-                    level = logging.ERROR
-                    pass
-                correct = False
-                self.logger.log(level,\
-                                    "match dependency (%s, %s)" % (self.program.names[log1], self.program.names[log2])\
-                                    + " on latency violated:"\
-                                    + " %s end stage starts at time %d." % ( self.program.names[log1], startTimeOfEndStageOfLog[log1])\
-                                    + " %s start stage starts at time %d." % ( self.program.names[log2], startTimeOfStartStageOfLog[log2]))
-                pass
-            pass
-
-        # action dependency
-        for (log1,log2) in self.program.logicalActionDependencyList:
-            if not(startTimeOfStartStageOfLog[log2] >=\
-                   startTimeOfEndStageOfLog[log1] + self.switch.actionDelay):
-                roundOkay = (round(startTimeOfStartStageOfLog[log2]) >=\
-                                 round(startTimeOfEndStageOfLog[log1]) + self.switch.actionDelay)
-                level = logging.WARNING
-                if not roundOkay:
-                    level = logging.ERROR
-                    pass
-                correct = False
-                self.logger.log(level,\
-                                    "action dependency (%s, %s) " % (self.program.names[log1], self.program.names[log2])\
-                                 + " on latency violated:"\
-                                 + " %s end stage starts at time %d." % ( self.program.names[log1], startTimeOfEndStageOfLog[log1])\
-                                 + " %s end start starts at time %d." % ( self.program.names[log2], startTimeOfStartStageOfLog[log2]))
-                pass
-            pass
-
-                    
-        return correct
-
-    def pipelineLatencyConstraint(self):
+    # startTimeOfStage
+    # startAllMemTimesStartTimeOfStage
+    # endAllMemTimesStartTimeOfStage
+    def pipelineLatencyConstraint(self): # double check
         self.startTimeOfStartStageOfLog = {}
         self.startTimeOfEndStageOfLog = {}
         for log in range(self.logMax):
-            self.startTimeOfStartStageOfLog[log] = \
-                sum([self.startAllMemTimesStartTimeOfStage[log, st] for st in range(self.stMax)])
-            self.startTimeOfEndStageOfLog[log] = \
-                sum([self.endAllMemTimesStartTimeOfStage[log, st] for st in range(self.stMax)])
-            pass
+            self.startTimeOfStartStageOfLog[log] = sum([self.startAllMemTimesStartTimeOfStage[log, st] for st in range(self.stMax)])
+            self.startTimeOfEndStageOfLog[log] = sum([self.endAllMemTimesStartTimeOfStage[log, st] for st in range(self.stMax)])
         
         # successor dependency
         for st in range(1,self.stMax):
-            self.m.constrain(self.startTimeOfStage[st] >=\
-                             self.startTimeOfStage[st-1] + self.switch.successorDelay)
-            pass
+            self.m.constrain(self.startTimeOfStage[st] >= self.startTimeOfStage[st-1] + self.switch.successorDelay)
         self.dictNumConstraints['st'] += 1
         self.dictNumConstraints['constant'] -= 1
         
         # match dependency
         for (log1,log2) in self.program.logicalMatchDependencyList:
-            self.m.constrain(\
-                             self.startTimeOfStartStageOfLog[log2] >=\
-                             self.startTimeOfEndStageOfLog[log1] + self.switch.matchDelay)
-            pass
+            self.m.constrain(self.startTimeOfStartStageOfLog[log2] >= self.startTimeOfEndStageOfLog[log1] + self.switch.matchDelay)
         self.dictNumConstraints['matchDep'] += 1
 
         # action dependency
         for (log1,log2) in self.program.logicalActionDependencyList:
-            self.m.constrain(\
-                             self.startTimeOfStartStageOfLog[log2] >=\
-                             self.startTimeOfEndStageOfLog[log1] + self.switch.actionDelay)
-            pass
+            self.m.constrain(self.startTimeOfStartStageOfLog[log2] >= self.startTimeOfEndStageOfLog[log1] + self.switch.actionDelay)
         
         self.dictNumConstraints['actionDep'] += 1
-        pass
-        
-    def checkStartingAndEndingStagesConstraint(self, model):
-        correct = True
-        blockAllMemBin = model[self.blockAllMemBin]
-        endAllMem= model[self.endAllMem]
-        startAllMem=model[self.startAllMem]
-        startAllMemTimesBlockAllMemBin = model[self.startAllMemTimesBlockAllMemBin]
-        endAllMemTimesBlockAllMemBin = model[self.endAllMemTimesBlockAllMemBin]
-        for log in range(self.logMax):
-            if not(sum([endAllMem[log,st] for st in range(self.stMax)]) == 1):
-                roundOkay = (sum([round(endAllMem[log,st]) for st in range(self.stMax)]) == 1)
-                level = logging.WARNING
-                if not roundOkay:
-                    level = logging.ERROR
-                    pass
-                correct = False
-                self.logger.log(level, "Constraint violated- more/less than one end stage for " + self.program.names[log])
-                pass
-            if not(sum([startAllMem[log,st] for st in range(self.stMax)]) == 1):
-                roundOkay = (sum([round(startAllMem[log,st]) for st in range(self.stMax)]) == 1)
-                level = logging.WARNING
-                if not roundOkay:
-                    level = logging.ERROR
-                    pass
-                correct = False
-                self.logger.log(level, "Constraint violated- more/less than one start stage for " + self.program.names[log])
-                pass
-            pass
-        return correct
 
-    def displayActiveRams(self, model):
-        """
-        For each table in each stage, 
-        - number of RAMs for a match packing units (enforce one type per st)
-        - + number of RAMs for an action packing unit
-        """
-        self.logger.debug("DISPLAY ACTIVE RAMS")
-        ramsForPUnits = 0
-        for st in range(self.stMax):
-            for log in range(self.logMax):
-                name = self.program.names[log]
-                # match RAM
-                for pf in range(self.pfMax['sram']):
-                    ramsPerPUnit = self.preprocess.layout['sram'][log][pf]
-                    index = log*self.stMax+st
-                    numPUnits = round(model[self.layout['sram']][index, pf])
-                    present = round(model[self.layoutBin['sram']][index, pf])
-
-                    idStr = "%d-wide match SRAM PUnit, %s in st %d (pf=%d)"%\
-                        (ramsPerPUnit, name, st, pf)
-                    layoutStr = "layout (%d) and layoutBin (%d)" %\
-                        (numPUnits, present)
-
-                    if numPUnits > 0 and present == 0 or\
-                            numPUnits == 0 and present == 1:
-                        self.logger.warn( "%s inconsistent for %s" %\
-                                          (layoutStr, idStr))
-                        pass
-                    elif numPUnits > 0 and present > 0:
-                        self.logger.debug(idStr)
-                        ramsForPUnits += ramsPerPUnit
-                        pass
-                    pass
-                # action RAM
-                pf = 0
-                ramsPerPUnit = self.preprocess.layout['action'][log][pf]
-                numPUnits = round(model[self.layout['action']][index, pf])
-                present = round(model[\
-                    self.layoutBin['action']][log*self.stMax+st, pf])
-                idStr = "%d-wide action SRAM PUnit, %s in st %d (pf=%d)"%\
-                    (ramsPerPUnit, name, st, pf)
-                layoutStr = "layout (%d) and layoutBin (%d)" %\
-                    (numPUnits, present)
-                if numPUnits > 0 and present == 0 or\
-                        numPUnits == 0 and present == 1:
-                    self.logger.warn( "%s inconsistent for %s" %\
-                                      (layoutStr, idStr))
-                    pass
-                elif numPUnits > 0 and present > 0:
-                    self.logger.debug(idStr)
-                    ramsForPUnits += ramsPerPUnit
-                    pass
-                
-                pass
-            self.logger.debug("%d active RAMs over all stages" % ramsForPUnits)
-            pass
-        pass
-
-    def displayStartingAndEndingStages(self, model):
-        numStartingStages = {}
-        startStage = {}
-        anyBlocksInStartStage = {}
-        for log in range(self.logMax):
-            # there is exactly one starting stage
-            numStartingStages[log] = sum([model[self.startAllMem][log,st] for st in range(self.stMax)])
-            self.logger.debug(self.program.names[log])
-            self.logger.debug(" numStartingStages: " + str(numStartingStages[log]))
-            
-            startStage[log] = sum([model[self.startAllMem][log,st] * st for st in range(self.stMax)])
-            self.logger.debug(" startStage: " + str(startStage[log]))
-            
-            upperBound = self.stMax
-            # if a stage has blocks, starting stage is at least as small
-            for st in range(self.stMax):
-                totalBlocks =\
-                  sum([model[self.block[mem]][log,st] for mem in self.switch.memoryTypes])
-
-                if (startStage[log] > st and totalBlocks > 0):
-                    binary = model[self.blockAllMemBin][log,st]
-                    roundOkay = not (round(startStage[log]) > st and round(totalBlocks) > 0)
-                    level = logging.WARNING
-                    if not roundOkay:
-                        level = logging.ERROR
-                        pass
-
-                    self.logger.log(level, "startStage def. constraint violated for log %s, st %d: " % (self.program.names[log], st)\
-                                     + " Stage %d has %d mem. blocks in bin. %d ." % (st, totalBlocks, binary)\
-                                     + " Lhs (start stage) = %d." % startStage[log]\
-                                     + " Rhs = %d + (1-%d)*%d." % (st, int(model[self.blockAllMemBin][log,st]), upperBound)\
-                                     + " Lhs <= Rhs?")
-                    pass
-                pass
-            pass
-            # starting stage has some blocks
-            anyBlocksInStartStage[log] = sum([model[self.startAllMemTimesBlockAllMemBin][log,st] for st in range(self.stMax)])
-            self.logger.debug(self.program.names[log])
-            self.logger.debug(" anyBlocksInStartStage: " + str(anyBlocksInStartStage[log]))
-            pass
-
-        pass
-    
-    def getStartingAndEndingStages(self):      
+    # startAllMem
+    # endAllMem
+    # blockAllMemBin
+    # endAllMemTimesBlockAllMemBin
+    # startAllMemTimesBlockAllMemBin
+    def getStartingAndEndingStages(self): # must look into this
         for log in range(self.logMax):
             # there is exactly one starting stage
             self.m.constrain(sum([self.startAllMem[log,st] for st in range(self.stMax)]) == 1)
             
             startStage = sum([self.startAllMem[log,st] * st for st in range(self.stMax)])
+
             upperBound = self.stMax
             # if a stage has blocks, starting stage is at least as small
             for st in range(self.stMax):
                 self.m.constrain(startStage <= st + (1 - self.blockAllMemBin[log,st]) * upperBound)
-                pass
-            pass
 
             # starting stage has some blocks
             anyBlocksInStartStage = sum([self.startAllMemTimesBlockAllMemBin[log,st] for st in range(self.stMax)])
             self.m.constrain(anyBlocksInStartStage >= 1)
-            pass
 
         for log in range(self.logMax):
             # there is exactly one ending stage
             self.m.constrain(sum([self.endAllMem[log,st] for st in range(self.stMax)]) == 1)
             
             endStage = sum([self.endAllMem[log,st] * st for st in range(self.stMax)])
+
             upperBound = self.stMax
             # if a stage has blocks, ending stage is at least as big
             for st in range(self.stMax):
                 self.m.constrain(endStage >= st - (1 - self.blockAllMemBin[log,st]) * upperBound)
-                pass
-            pass
+
             # ending stage has some blocks
             anyBlocksInEndStage = sum([self.endAllMemTimesBlockAllMemBin[log,st] for st in range(self.stMax)])
             self.m.constrain(anyBlocksInEndStage >= 1)
-            pass
+
+        # # hun_log
+        if hun_start_end_same == True:
+            for log in range(self.logMax):
+                for st in range(self.stMax):
+                    self.m.constrain(self.startAllMem[log,st] == self.endAllMem[log,st])
+        #     name = self.program.names[log]
+        #     if "condition" in name:
+
         self.dictNumConstraints['log'] += 2*2
         self.dictNumConstraints['log*st'] += 2
-        pass
 
-    def dependencyConstraint(self):
+    # startAllMem
+    # endAllMem
+    def dependencyConstraint(self): # double checked
         """
         If log2 action depends on log1, then last stage (any mem)
         of log1 is strictly before first stage (any mem) of log2.
@@ -577,30 +337,31 @@ class RmtIlpCompiler:
         allStages = np.matrix(self.preprocess.toposortOrderStages).T
 
         for (log1,log2) in self.program.logicalSuccessorDependencyList:
+            # print("sucessor", self.program.names[log1], self.program.names[log2])
             start2 = self.startAllMem[log2, :] * allStages
             end1 = self.endAllMem[log1,:] * allStages
             self.m.constrain(start2 >= end1)
-            pass
         self.dictNumConstraints['succDep'] += 1
 
         for (log1,log2) in self.program.logicalMatchDependencyList:
+            # print("match", self.program.names[log1], self.program.names[log2])
             start2 = self.startAllMem[log2, :] * allStages
             end1 = self.endAllMem[log1,:] * allStages
             self.m.constrain(start2 >= eps + end1)
-            pass
         self.dictNumConstraints['matchDep'] += 1
 
         for (log1,log2) in self.program.logicalActionDependencyList:
+            # print("action", self.program.names[log1], self.program.names[log2])
             start2 = self.startAllMem[log2, :] * allStages
             end1 = self.endAllMem[log1,:] * allStages
             self.m.constrain(start2 >= eps + end1)
-            pass
         self.dictNumConstraints['actionDep'] += 1
-
-
-        pass
+        # exit(1)
     
-    def maximumStageConstraint(self):
+    # totalBlocksForStBin
+    # isMaximumStage
+    # isMaximumStageTimesTotalBlocksForStBin
+    def maximumStageConstraint(self): # hun_log
         # minimize maximum stage
         upperBound = self.blockMax
         lowerBound = 1
@@ -608,73 +369,56 @@ class RmtIlpCompiler:
         # Binary constraint
         for st in range(self.stMax):
             # totalBlocksForStBin doesn't count action RAMs
-            total = sum([self.block[mem][log,st]\
-                             for log in range(self.logMax)\
-                             for mem in self.switch.memoryTypes])
-            self.m.constrain(total <= upperBound *\
-                                 self.totalBlocksForStBin[st])
-            self.m.constrain(total >= lowerBound *\
-                                 self.totalBlocksForStBin[st])
-            pass
+            # print(self.switch.memoryTypes) # ['sram', 'tcam']
 
-        
+            total = sum([self.endAllMem[log, st] for log in range(self.logMax)])
+
+            self.m.constrain(total <= upperBound * self.totalBlocksForStBin[st])
+            self.m.constrain(total >= lowerBound * self.totalBlocksForStBin[st])
+
+
         upperBound = self.stMax
-        maximumStage = sum([self.isMaximumStage[st]*st\
-                                for st in range(self.stMax)])
+        maximumStage = sum([self.isMaximumStage[st]*st for st in range(self.stMax)])
         # If a stage st has blocks, maximumStage at least as big as st
         for st in range(self.stMax):
-            self.m.constrain(self.totalBlocksForStBin[st] * st <=\
-                                 maximumStage)
-            pass
+            self.m.constrain(self.totalBlocksForStBin[st] * st <= maximumStage)
 
         # Exactly one stage can be maximum stage
-        numMaxStages = sum([self.isMaximumStage[st] for st in\
-                                range(self.stMax)])
+        numMaxStages = sum([self.isMaximumStage[st] for st in range(self.stMax)])
         self.m.constrain(numMaxStages == 1)
 
         # Product constraint
         for st in range(self.stMax):
-            self.m.constrain(\
-                self.isMaximumStageTimesTotalBlocksForStBin[st] <=\
-                    self.totalBlocksForStBin[st])
-            self.m.constrain(\
-                self.isMaximumStageTimesTotalBlocksForStBin[st] <=\
-                    self.isMaximumStage[st])
-            self.m.constrain(\
-                self.isMaximumStageTimesTotalBlocksForStBin[st] >=\
-                    self.totalBlocksForStBin[st]+\
-                    self.isMaximumStage[st]-1)
-            pass
+            self.m.constrain(self.isMaximumStageTimesTotalBlocksForStBin[st] <= self.totalBlocksForStBin[st])
+            self.m.constrain(self.isMaximumStageTimesTotalBlocksForStBin[st] <= self.isMaximumStage[st])
+            self.m.constrain(self.isMaximumStageTimesTotalBlocksForStBin[st] >= self.totalBlocksForStBin[st]+ self.isMaximumStage[st]-1)
 
         # Maximum stage has one or more blocks
-        sumOverSt =\
-            sum([self.isMaximumStageTimesTotalBlocksForStBin[st]\
-                     for st in range(self.stMax)])
+        sumOverSt = sum([self.isMaximumStageTimesTotalBlocksForStBin[st] for st in range(self.stMax)])
         self.m.constrain(sumOverSt > 0)
 
         self.dictNumConstraints['st'] += 6 
         # 2 for bin, 1 for "at least as big", 3 for prod
         self.dictNumConstraints['constant'] += 2
         # 1 for numMaxStages, 1 for max stage has non zero blocks
-        pass
 
-    def getBlockBinary(self):
+
+    # block
+    # blockBin
+    def getBlockBinary(self): # double checked
         lowerBound = 1
         for mem in self.switch.memoryTypes:
             upperBound = sum(self.switch.numBlocks[mem])
             for log in range(self.logMax):
                 for st in range(self.stMax):
-                    self.m.constrain(self.blockBin[mem][log,st]*lowerBound <=\
-                                         self.block[mem][log,st])
-                    self.m.constrain(self.blockBin[mem][log,st]*upperBound\
-                                         >= self.block[mem][log,st])
-                    pass
-                pass
-            pass
-        self.dictNumConstraints['mem*log*st'] += 2
-        pass
+                    self.m.constrain(self.blockBin[mem][log,st]*lowerBound <= self.block[mem][log,st])
+                    self.m.constrain(self.blockBin[mem][log,st]*upperBound >= self.block[mem][log,st])
 
-    def getLayoutBinary(self):
+        self.dictNumConstraints['mem*log*st'] += 2
+
+    # layout
+    # layoutBin
+    def getLayoutBinary(self): # double checked
         lowerBound = 1
         for thing in self.switch.allTypes:
             upperBound = self.blockMax 
@@ -682,100 +426,102 @@ class RmtIlpCompiler:
                 for st in range(self.stMax):
                     for pf in range(self.pfMax[thing]):
                         index = log*self.stMax + st
-                        self.m.constrain(\
-                            self.layoutBin[thing][index, pf]*lowerBound <=\
-                                self.layout[thing][index, pf])
-                        self.m.constrain(\
-                            self.layoutBin[thing][index, pf]*upperBound\
-                                >= self.layout[thing][index, pf])
-                        pass
-                    pass
-                pass
-            pass
+                        self.m.constrain(self.layoutBin[thing][index, pf]*lowerBound <= self.layout[thing][index, pf])
+                        self.m.constrain(self.layoutBin[thing][index, pf]*upperBound >= self.layout[thing][index, pf])
         self.dictNumConstraints['allMem*pf*log*st'] += 1
 
-    def checkInputCrossbarConstraint(self, model, mem):
-        correct = True
-        blockBin = model[self.blockBin[mem]]
-        numSubunitsNeeded = {}
-        numSubunitsAvailable = {}
 
-        for st in range(self.stMax):
-            numSubunitsNeeded = sum([blockBin[log,st] *\
-                                     self.preprocess.inputCrossbarNumSubunits[mem][log] for log in range(self.logMax)])
-            numSubunitsAvailable = self.switch.inputCrossbarNumSubunits[mem] 
-            if (numSubunitsNeeded > numSubunitsAvailable):
-                roundOkay = (sum([round(blockBin[log,st]) *\
-                                     self.preprocess.inputCrossbarNumSubunits[mem][log] for log in range(self.logMax)])\
-                                     <= numSubunitsAvailable)
-                level = logging.WARNING
-                if not roundOkay:
-                    level = logging.ERROR
-                    pass
-                correct = False
-                self.logger.log(level, "Input Crossbar Constraint violated in st %d, mem %s" % (st,mem) +\
-                             "Used " + str(numSubunitsNeeded) +", Available " + str(numSubunitsAvailable))
-                pass
-            pass        
-        return correct
-
-    def inputCrossbarConstraint(self):
+    # blockBin
+    def inputCrossbarConstraint(self): # double checked
         numSubunitsNeeded = {}
         numSubunitsAvailable = {}
         for mem in self.switch.memoryTypes:
-            numSubunitsNeeded[mem] = self.blockBin[mem].T *\
-                self.preprocess.inputCrossbarNumSubunits[mem]
-            numSubunitsAvailable[mem] =\
-                self.switch.inputCrossbarNumSubunits[mem] *\
-                np.ones((self.stMax,1))
-            self.m.constrain(numSubunitsNeeded[mem] <=\
-                                 numSubunitsAvailable[mem])
-            pass        
+            # print(mem)
+            # print(self.preprocess.inputCrossbarNumSubunits[mem]) # [4, 4, 4, ...]
+            # print(self.switch.inputCrossbarNumSubunits[mem]) # 128 or 66
+            numSubunitsNeeded[mem] = self.blockBin[mem].T * self.preprocess.inputCrossbarNumSubunits[mem]
+            numSubunitsAvailable[mem] = self.switch.inputCrossbarNumSubunits[mem] * np.ones((self.stMax,1))
+            self.m.constrain(numSubunitsNeeded[mem] <= numSubunitsAvailable[mem])
+        # exit(1)
         self.dictNumConstraints['mem*st'] += 1
-        pass
 
+    # block
+    # blockAllMemBin
     def getBlockAllMemBinary(self):
+        # print(self.all) # ['sram', 'tcam']
+        # print(self.switch.memoryTypes) # ['sram', 'tcam']
         lowerBound = 1
-        upperBound = sum([self.switch.numBlocks[mem] for mem in\
-                              self.switch.memoryTypes])
+        upperBound = sum([self.switch.numBlocks[mem] for mem in self.switch.memoryTypes])
+        # print(self.switch.numBlocks) 'sram': [80, 80, ...], 'tcam': [24, 24, ...], 
+        # print(upperBound) # [104, 104, 104, ...]
+        # exit(1)
+        if hun_add_logical_table_ids == True:
+            for log in range(self.logMax):
+                for st in range(self.stMax):
+                    total = sum([self.block[mem][log,st] for mem in self.all])
+                    self.m.constrain(total <= self.logicalTableIDs[log, st] * upperBound[st])
+
         for log in range(self.logMax):
             for st in range(self.stMax):
                 # blockAllMemBin doesn't count action RAMs
-                total = sum([self.block[mem][log,st] for\
-                                 mem in self.all])
-                self.m.constrain(total <= upperBound[st] *\
-                                     self.blockAllMemBin[log,st])
-                self.m.constrain(total >= lowerBound *\
-                                     self.blockAllMemBin[log,st])
-                pass
-            pass
-        self.dictNumConstraints['log*st'] += 2
-        pass
+                total = sum([self.block[mem][log,st] for mem in self.all])
 
-    def resolutionLogicConstraint(self):
+                if hun_add_logical_table_ids == True:
+                    total += self.logicalTableIDs[log, st]
+
+                self.m.constrain(total <= upperBound[st] * self.blockAllMemBin[log,st])
+                self.m.constrain(total >= lowerBound * self.blockAllMemBin[log,st])
+
+        self.dictNumConstraints['log*st'] += 2
+
+    # blockAllMemBin
+    def resolutionLogicConstraint(self): # double checked
         """ Limits number of match tables per stage. Since table match resolution logic
         can only handle a finite number
         """
-        numMatchTablesUsed = self.blockAllMemBin.T * np.ones((self.logMax,1))
-        numMatchTablesAvailable = self.switch.resolutionLogicNumMatchTables *\
-            np.ones((self.stMax,1))
-        self.m.constrain(numMatchTablesUsed <= numMatchTablesAvailable)
-        self.dictNumConstraints['st'] += 1
-        pass
+        # print("self.switch.resolutionLogicNumMatchTables")
+        # print(self.switch.resolutionLogicNumMatchTables)
+        # exit(1)
+        
 
-    def actionCrossbarConstraint(self):
+        if hun_correct_table_ids == False:
+            numMatchTablesUsed = self.blockAllMemBin.T * np.ones((self.logMax,1))
+            numMatchTablesAvailable = self.switch.resolutionLogicNumMatchTables * np.ones((self.stMax,1))
+            self.m.constrain(numMatchTablesUsed <= numMatchTablesAvailable)
+            self.dictNumConstraints['st'] += 1
+        else:
+            for st in range(self.stMax):
+                cond_log_table_ids = 0
+                normal_log_table_ids = 0
+                for log in range(self.logMax):
+                    name = self.program.names[log]
+                    if "condition" in name:
+                        cond_log_table_ids += self.logicalTableIDs[log, st]
+                    else:
+                        normal_log_table_ids += self.logicalTableIDs[log, st]
+                
+                if not isinstance(cond_log_table_ids, int):
+                    self.m.constrain(cond_log_table_ids <= 16)
+                if not isinstance(normal_log_table_ids, int):
+                    self.m.constrain(normal_log_table_ids <= 16)
+
+    # blockAllMemBin
+    def actionCrossbarConstraint(self): # double checked
         """
         No more than 1280 bits of action from each stage.
         """
-        numTotalBitsAvailable = self.switch.actionCrossbarNumBits *\
-            np.ones((self.stMax,1))
-        numTotalBitsNeeded = self.blockAllMemBin.T *\
-            self.preprocess.actionCrossbarNumBits
+        # print("self.switch.actionCrossbarNumBits")
+        # print(self.switch.actionCrossbarNumBits) # 1024
+        # print("self.preprocess.actionCrossbarNumBits")
+        # print(self.preprocess.actionCrossbarNumBits) # 0 0 0 0 0 0 0 0
+        # exit(1)
+        numTotalBitsAvailable = self.switch.actionCrossbarNumBits * np.ones((self.stMax,1))
+        numTotalBitsNeeded = self.blockAllMemBin.T * self.preprocess.actionCrossbarNumBits
         self.m.constrain(numTotalBitsNeeded <= numTotalBitsAvailable)
         self.dictNumConstraints['st'] += 1
-        pass
 
-    def onePackingUnitForLogInStage(self):
+    # layoutBin
+    def onePackingUnitForLogInStage(self): # double checked
         """ Restrict logical tables to use same packing unit in a stage
         instead of combinations of different size packing units in the
         same stage. Packing units in different stages can be different though.
@@ -783,275 +529,83 @@ class RmtIlpCompiler:
         for st in range(self.stMax):
             for log in range(self.logMax):
                 index = log*self.stMax+st
-                numPUnitTypesForLogInSt = sum([\
-                        self.layoutBin['sram'][index, pf]\
-                            for pf in range(self.pfMax['sram'])])
+                numPUnitTypesForLogInSt = sum([ self.layoutBin['sram'][index, pf] for pf in range(self.pfMax['sram'])])
                 self.m.constrain(numPUnitTypesForLogInSt <= 1)
-                pass
-            pass
         self.dictNumConstraints['log*st'] += 1
-        pass
 
-    def getNumActiveSrams(self):
-        """
-        For each table in each stage, 
-        - number of RAMs for a match packing units (enforce one type per st)
-        - + number of RAMs for an action packing unit
-        """
-        ramsForPUnits = 0
-        for st in range(self.stMax):
-            for log in range(self.logMax):
-                # match RAM
-                for pf in range(self.pfMax['sram']):
-                    ramsPerPUnit = self.preprocess.layout['sram'][log][pf]
-                    present = self.layoutBin['sram'][log*self.stMax+st, pf]
-                    ramsForPUnits += present * ramsPerPUnit
-                    pass
-                # action RAM
-                pf = 0
-                ramsPerPUnit = self.preprocess.layout['action'][log][pf]
-                present = self.layoutBin['action'][log*self.stMax+st, pf]
-                ramsForPUnits += present * ramsPerPUnit
-                pass
-            pass
-        self.numActiveSrams = ramsForPUnits
-        pass
 
-    def getNumActiveTcams(self):
-        """
-        If match data width is less than TCAM width, only 
-        a fraction of TCAM is active/ consumes power.
-        """
-        tcamsForPUnits = 0
-        for st in range(self.stMax):
-            for log in range(self.logMax):
-                for pf in range(self.pfMax['tcam']):
-                    # layout['tcam'][log] is not a list, just an int
-                    tcamsPerPUnit = self.preprocess.layout['tcam'][log]
-                    tcamWidth = tcamsPerPUnit * self.switch.width['tcam']
-                    matchWidth = self.program.logicalTableWidths[log]
-                    numPUnits = self.layout['tcam'][log*self.stMax+st, pf]
-                    tcamsForPUnits += numPUnits * (tcamWidth/matchWidth)
-                    pass
-                pass
-            pass
-        self.numActiveTcams = tcamsForPUnits
-        pass
-
-    def getPowerForRamsAndTcamsObjective(self):
-        self.getNumActiveSrams()
-        self.getNumActiveTcams()
-        self.powerForRamsAndTcams =\
-            self.switch.power['wattsPerTcam'] * self.numActiveTcams +\
-            self.switch.power['wattsPerSram'] * self.numActiveSrams
-        pass
-
-    
-    def startAndEndStagesVariables(self):
-        logMax = self.logMax
-        stMax = self.stMax
-
-        self.startAllMem = self.m.new((logMax, stMax), vtype=bool,\
-          name='startAllMem')
-        self.dictNumVariables['log*st'] += 1
-
-        self.startAllMemTimesBlockAllMemBin =  self.m.new((logMax, stMax), vtype=bool,\
-                                                          name='startAllMemTimesBlockAllMemBin')                   
-        self.dictNumVariables['log*st'] += 1
-
-        self.endAllMem = self.m.new((logMax, stMax), vtype=bool,\
-          name='endAllMem')
-        self.dictNumVariables['log*st'] += 1
-
-        self.endAllMemTimesBlockAllMemBin =  self.m.new((logMax, stMax), vtype=bool,\
-                                                          name='endAllMemTimesBlockAllMemBin')                   
-        self.dictNumVariables['log*st'] += 1
-        pass
-
-    def getXxAllMemTimesBlockAllMemBin(self):
+    # blockAllMemBin
+    # startAllMemTimesBlockAllMemBin
+    # startAllMem
+    # endAllMemTimesBlockAllMemBin
+    # endAllMem
+    def getXxAllMemTimesBlockAllMemBin(self): # double checked
         for log in range(self.logMax):
             for st in range(self.stMax):
                 self.m.constrain(self.startAllMemTimesBlockAllMemBin[log, st] <= self.startAllMem[log, st])
                 self.m.constrain(self.startAllMemTimesBlockAllMemBin[log, st] <= self.blockAllMemBin[log, st])
-                self.m.constrain(self.startAllMemTimesBlockAllMemBin[log, st] >= self.startAllMem[log, st] +\
-                                 self.blockAllMemBin[log, st] - 1)
-                pass
-            pass
+                self.m.constrain(self.startAllMemTimesBlockAllMemBin[log, st] >= self.startAllMem[log, st] + self.blockAllMemBin[log, st] - 1)
 
         for log in range(self.logMax):
             for st in range(self.stMax):
                 self.m.constrain(self.endAllMemTimesBlockAllMemBin[log, st] <= self.endAllMem[log, st])
                 self.m.constrain(self.endAllMemTimesBlockAllMemBin[log, st] <= self.blockAllMemBin[log, st])
-                self.m.constrain(self.endAllMemTimesBlockAllMemBin[log, st] >= self.endAllMem[log, st] +\
-                                 self.blockAllMemBin[log, st] - 1)
-                pass
-            pass
+                self.m.constrain(self.endAllMemTimesBlockAllMemBin[log, st] >= self.endAllMem[log, st] + self.blockAllMemBin[log, st] - 1)
+
         self.dictNumConstraints['log*st'] += 6
-        pass
 
-    def getIlpStartingDictValues(self, block, layout, word,\
-                                     startTimeOfStage):
+    # hun_log
+    def hunAdditionalConstraints(self):
+        # capacity constraint
+        self.m.constrain(self.hashDistUnitVar.T * np.ones(self.logMax) <= self.switch.maxHashDistUnit * np.ones(self.stMax))
+        self.m.constrain(self.saluVar.T * np.ones(self.logMax) <= self.switch.maxSALU * np.ones(self.stMax))
+        self.m.constrain(self.saluVar.T * self.program.registerBlockList <= self.switch.maxMapRAM * np.ones(self.stMax))
 
-        usedStage = {}
-        totalBlocksForStBin = np.zeros(self.stMax)
-        isMaximumStage = np.zeros(self.stMax)
-        isMaximumStageTimesTotalBlocksForStBin = np.zeros(self.stMax)
-        maximumStage = -1
-    
-        for mem in self.switch.memoryTypes:
-            for st in range(self.stMax):
-                if sum([block[mem][log,st] for mem in self.all\
-                            for log in range(self.logMax)]) > 0:
-                    if st > maximumStage:
-                        maximumStage = st
-                        pass
-                    totalBlocksForStBin[st] = 1              
-                    pass
-                pass
-            pass
+        # assignment constraint
+        allocatedHashes = self.hashDistUnitVar * np.ones(self.stMax)
+        self.m.constrain(allocatedHashes == self.program.hashDistUnitList)
 
-        self.logger.info(\
-       "Maximum stage in start solution is %.1f.." % maximumStage)
-        isMaximumStage[maximumStage] = 1
-        isMaximumStageTimesTotalBlocksForStBin[maximumStage] = 1
+        allocatedSALUs = self.saluVar * np.ones(self.stMax)
+        self.m.constrain(allocatedSALUs == self.program.saluList)
 
-        self.startingDict[self.totalBlocksForStBin] = totalBlocksForStBin
-        self.startingDict[self.isMaximumStage] = isMaximumStage
-        self.startingDict[self.isMaximumStageTimesTotalBlocksForStBin] =\
-            isMaximumStageTimesTotalBlocksForStBin
-
-        blockBin = {}
-        for thing in self.switch.allTypes:
-            blockBin[thing] = np.zeros((self.logMax, self.stMax))            
-            for log in range(self.logMax):
-                for st in range(self.stMax):
-                    if block[thing][log,st] > 0:
-                        blockBin[thing][log,st] = 1
-                        pass
-                    pass
-                pass
-            pass
-
-        layoutBin = {}
-        for thing in self.switch.allTypes:
-            width = int(self.logMax*self.stMax)
-            depth = int(self.pfMax[thing])
-            layoutBin[thing] = np.zeros((width, depth))
-            for log in range(self.logMax):
-                for st in range(self.stMax):
-                    for pf in range(self.pfMax[thing]):
-                        if layout[thing][log*self.stMax+st,pf] > 0:
-                            layoutBin[thing][log*self.stMax+st,pf] = 1
-                            pass
-                        pass
-                    pass
-                pass
-            pass
-              
-        for thing in self.switch.allTypes:
-            self.startingDict[self.word[thing]] = word[thing]
-            self.startingDict[self.block[thing]] = block[thing]
-            self.startingDict[self.layout[thing]] = layout[thing]
-            self.startingDict[self.blockBin[thing]] = blockBin[thing]
-            self.startingDict[self.layoutBin[thing]] = layoutBin[thing]
-            pass
-
-        self.startingDict[self.startTimeOfStage] =\
-            startTimeOfStage
-
-
-        blockAllMemBin = np.zeros((self.logMax, self.stMax))
+        # hashDistUnit and SALU must be in the start stage
         for log in range(self.logMax):
             for st in range(self.stMax):
-                totalBlocks = sum([round(block[mem][log,st]) for mem in self.all])
-                if totalBlocks > 0:
-                    blockAllMemBin[log,st] = 1
-                pass
-                pass
-            pass
-        self.startingDict[self.blockAllMemBin] = blockAllMemBin
-        
-        startAllMem = np.zeros((self.logMax, self.stMax))
-        endAllMem = np.zeros((self.logMax, self.stMax))
+                self.m.constrain(self.hashDistUnitVar[log,st] <= self.startAllMem[log,st])
+                self.m.constrain(self.saluVar[log,st] <= self.startAllMem[log,st])
 
-        startAllMemTimesStartTimeOfStage = np.zeros((self.logMax, self.stMax))
-        endAllMemTimesStartTimeOfStage = np.zeros((self.logMax, self.stMax))
+    """ Variables """
 
-        startAllMemTimesBlockAllMemBin = np.zeros((self.logMax, self.stMax))
-        endAllMemTimesBlockAllMemBin = np.zeros((self.logMax, self.stMax))
+    def pipelineLatencyVariables(self):
+        """ Variables for start and end time of stages"""
+        ub = self.stMax * self.switch.matchDelay
+        ubb = self.stMax * self.switch.matchDelay * self.stMax
+        self.startTimeOfStage = self.m.new((self.stMax), vtype='real', lb=0, ub=ub, name='startTimeOfStage')
+        self.dictNumVariables['st'] += 1
 
-        for log in range(self.logMax):
-            stages = [st for st in range(self.stMax)\
-                          if any([round(block[mem][log,st])>0\
-                                      for mem in self.all])]
-            pass
-            if len(stages) == 0:
-                self.logger.warn("Warning! " + str(log) + " not assigned to any stage")
-                pass
-            else:
-                startSt = int(min(stages))
-                endSt = int(max(stages))
-                startAllMem[log,startSt] = 1
-                endAllMem[log, endSt] = 1
-                startAllMemTimesBlockAllMemBin[log, startSt] = blockAllMemBin[log, startSt]
-                endAllMemTimesBlockAllMemBin[log, endSt] = blockAllMemBin[log, endSt]
-                startAllMemTimesStartTimeOfStage[log,startSt] = startTimeOfStage[startSt]
-                endAllMemTimesStartTimeOfStage[log,endSt] = startTimeOfStage[endSt]
-                pass
-            pass
-                
-        self.startingDict[self.startAllMem] = startAllMem
-        self.startingDict[self.endAllMem] = endAllMem
-        self.startingDict[self.startAllMemTimesStartTimeOfStage] =\
-          startAllMemTimesStartTimeOfStage
-        self.startingDict[self.endAllMemTimesStartTimeOfStage] =\
-          endAllMemTimesStartTimeOfStage
-        self.startingDict[self.startAllMemTimesBlockAllMemBin] =\
-          startAllMemTimesBlockAllMemBin
-        self.startingDict[self.endAllMemTimesBlockAllMemBin] =\
-          endAllMemTimesBlockAllMemBin
-        pass
+        self.startAllMemTimesStartTimeOfStage = self.m.new((self.logMax, self.stMax), vtype='real', lb=0, ub = ubb, name='startAllMemTimesStartTimeOfStage')
+        self.endAllMemTimesStartTimeOfStage = self.m.new((self.logMax, self.stMax), vtype='real', lb=0, ub = ubb, name='endAllMemTimesStartTimeOfStage')
+        self.dictNumVariables['log*st'] += 2
 
-    # LY's experiment- where ILP speeds up if it doesn't have to
-    # assign action data
-    def displayMaximumStage(self, model):
-        maximumStage = sum([model[self.isMaximumStage][st]*st\
-                                for st in range(self.stMax)])
-        self.logger.debug("maximum stage from model: %.1f" % maximumStage)
-        numMaxStages = sum([model[self.isMaximumStage][st] for\
-                                st in range(self.stMax)])
-        self.logger.debug("num maximum stages from model: %.1f" %\
-                         numMaxStages)
-        sumOverSt =\
-            sum([model[self.isMaximumStageTimesTotalBlocksForStBin]\
-                     [st] for st in range(self.stMax)])
-        self.logger.debug(\
-            "sum over is max st time totalBlocksForStBin: %.1f" %\
-                sumOverSt)
-        debugStr =\
-            "totalBlocksForStBin, isMaximumStage, "
-        debugStr += "total (w/o action), total (w action)\n"
-        for st in range(self.stMax):
-            totalWoAction = sum([model[self.block[mem]][log,st]\
-                             for log in range(self.logMax)\
-                             for mem in self.switch.memoryTypes])
-            
-            totalWAction = totalWoAction +\
-                sum([model[self.block['action']][log,st]\
-                             for log in range(self.logMax)])
-            debugStr +=\
-                ("St %d: %.1f, %.1f, %.1f, %.1f\n" %\
-                     (\
-                    st,\
-                        model[self.totalBlocksForStBin][st],\
-                        model[self.isMaximumStage][st],\
-                        totalWoAction, totalWAction))
-            pass
-        self.logger.debug(debugStr)
-        pass
-    
-        
-    def solve(self, program, switch, preprocess):
+
+    def startAndEndStagesVariables(self):
+        logMax = self.logMax
+        stMax = self.stMax
+
+        self.startAllMem = self.m.new((logMax, stMax), vtype=bool, name='startAllMem')
+        self.dictNumVariables['log*st'] += 1
+
+        self.startAllMemTimesBlockAllMemBin =  self.m.new((logMax, stMax), vtype=bool, name='startAllMemTimesBlockAllMemBin')                   
+        self.dictNumVariables['log*st'] += 1
+
+        self.endAllMem = self.m.new((logMax, stMax), vtype=bool, name='endAllMem')
+        self.dictNumVariables['log*st'] += 1
+
+        self.endAllMemTimesBlockAllMemBin =  self.m.new((logMax, stMax), vtype=bool, name='endAllMemTimesBlockAllMemBin')                   
+        self.dictNumVariables['log*st'] += 1
+
+
+    def solve(self, program, switch, preprocess, output_path, objective):
         """ Returns a configuration for program in switch, given some preprocessed information,
         like possible packing units for different logical tables.
         """
@@ -1117,47 +671,38 @@ class RmtIlpCompiler:
 
 
         for thing in self.switch.allTypes:
-            self.word[thing] =\
-                self.m.new((logMax, stMax), vtype='real', lb=0, ub=wordMax,\
-                          name='word'+thing)
-            self.block[thing] =\
-                self.m.new((logMax, stMax), vtype='real', lb=0, ub=blockMax,\
-                          name='block'+thing)
+            self.word[thing] = self.m.new((logMax, stMax), vtype='real', lb=0, ub=wordMax, name='word'+thing)
+            self.block[thing] = self.m.new((logMax, stMax), vtype='real', lb=0, ub=blockMax, name='block'+thing)
 
-            self.layout[thing] =\
-                self.m.new((logMax * stMax, pfMax[thing]), vtype=int, lb=0,\
-                               ub=blockMax, name='layout'+thing)
+            self.layout[thing] = self.m.new((logMax * stMax, pfMax[thing]), vtype=int, lb=0, ub=blockMax, name='layout'+thing)
 
-            self.blockBin[thing]\
-                = self.m.new((logMax, stMax), vtype=bool,\
-                                 name='blockBin'+thing)
-            self.layoutBin[thing]\
-                = self.m.new((logMax * stMax, pfMax[thing]), vtype=bool,\
-                                 name='layoutBin'+thing)
-            pass    
+            self.blockBin[thing] = self.m.new((logMax, stMax), vtype=bool, name='blockBin'+thing)
+            self.layoutBin[thing] = self.m.new((logMax * stMax, pfMax[thing]), vtype=bool, name='layoutBin'+thing)
+
         self.dictNumVariables['allMem*log*st'] += 3
         self.dictNumVariables['allMem*pf*log*st'] += 2
 
         # Total Blocks per stage logMax * stMax * 2
-        self.blockAllMemBin = self.m.new((logMax, stMax), vtype=bool,\
-                              name='blockAllMemBin')
+        self.blockAllMemBin = self.m.new((logMax, stMax), vtype=bool, name='blockAllMemBin')
         self.dictNumVariables['log*st'] += 1
         
         # Maximum stage variables stMax * 2
-        self.isMaximumStage =\
-            self.m.new(stMax, vtype=int, lb=0, ub=1, name='isMaximumStage')
-        self.totalBlocksForStBin =\
-            self.m.new(stMax, vtype=int, lb=0, ub=1,\
-                           name='totalBlocksForStBin')
-        self.isMaximumStageTimesTotalBlocksForStBin =\
-            self.m.new(stMax, vtype=int, lb=0, ub=1,\
-                           name='isMaximumStageTimesTotalBlocksForStBin')
+        self.isMaximumStage = self.m.new(stMax, vtype=int, lb=0, ub=1, name='isMaximumStage')
+        self.totalBlocksForStBin = self.m.new(stMax, vtype=int, lb=0, ub=1, name='totalBlocksForStBin')
+        self.isMaximumStageTimesTotalBlocksForStBin = self.m.new(stMax, vtype=int, lb=0, ub=1, name='isMaximumStageTimesTotalBlocksForStBin')
 
         self.dictNumVariables['st'] += 3
 
         # Starting and ending stage variables logMax * stMax * 3 * 2
         self.logger.info("Setting up variables for start and end stages");
         self.startAndEndStagesVariables()
+
+        # hun_log
+        if hun_extended == True:
+            self.hashDistUnitVar = self.m.new((logMax, stMax), vtype=int, lb=0, ub=1, name='hashDistUnit')
+            self.saluVar = self.m.new((logMax, stMax), vtype=int, lb=0, ub=1, name='salu')
+            self.logicalTableIDs = self.m.new((logMax, stMax), vtype=int, lb=0, ub=1, name='logicalTableIDs')
+
 
         self.getXxAllMemTimesBlockAllMemBin()
 
@@ -1180,6 +725,7 @@ class RmtIlpCompiler:
         # Use memory type only where allowed
         if 'useMemory' != self.ignoreConstraint:
             self.useMemoryConstraint()
+            pass
 
         # Assign enough match words for each table
         if 'assignment' != self.ignoreConstraint:
@@ -1228,8 +774,7 @@ class RmtIlpCompiler:
 
         self.getStartAllMemTimesStartTimeOfStage()
         self.getEndAllMemTimesStartTimeOfStage()
-        if self.ignoreConstraint != 'pipelineLatency' and \
-                self.objectiveStr not in ['maximumStage', 'powerForRamsAndTcams']:
+        if self.ignoreConstraint != 'pipelineLatency' and self.objectiveStr not in ['maximumStage', 'powerForRamsAndTcams']:
             self.logger.info("Setting up pipeline latency constraint")
             self.pipelineLatencyConstraint()
         else:
@@ -1238,60 +783,14 @@ class RmtIlpCompiler:
         self.logger.info("Setting up constraint to get an upper bound on maximum stage, which can minimize in objective if needed")
         self.maximumStageConstraint()
 
+        # hun_log
+        if hun_extended == True:
+            self.hunAdditionalConstraints()
+
         self.startingDict = {}
 
         configs = {}
-        if len(self.greedyVersion)>0:
-            numSramBlocksReserved=int(self.greedyVersion.split("-")[1])
-            ####################################################
-            self.logger.info("Getting a greedy solution")
-            self.logger.info("~~")
-            self.logger.info("Greedy compiler's log begins..")
-            greedyCompiler = rmt_ffd_compiler.RmtFfdCompiler(numSramBlocksReserved)
-            if 'ffl' in self.greedyVersion:
-                greedyCompiler = rmt_ffl_compiler.RmtFflCompiler(numSramBlocksReserved)
-                pass
-            start = time.time()
-            greedyConfig =\
-                greedyCompiler.solve(self.program, self.switch, self.preprocess)['greedyConfig']
-            self.logger.info("Greedy compiler's log ends..")
-            configs['greedyConfig'] = greedyConfig
-            self.logger.info("~~")
 
-            end = time.time()
-            ####################################################
-            #self.logger.debug("Displaying greedy solution")
-            #greedyConfig.display()
-            ####################################################
-            self.logger.debug("Saving results from greedy")
-            self.results['greedyTotalUnassignedWords'] = greedyCompiler.results['totalUnassignedWords']
-            self.results['greedySolveTime'] = greedyCompiler.results['solveTime']
-            self.results['greedySolved'] = greedyCompiler.results['solved']
-            self.results['greedyPipelineLatency'] = greedyCompiler.results['pipelineLatency']
-            self.results['greedyPower'] = greedyCompiler.results['power']
-            self.results['greedyNumStages'] = greedyCompiler.results['numStages']
-            self.logger.info("results[Greedy .." + str(self.results))
-
-            if not self.results['greedySolved']:
-                self.logger.warn("Greedy couldn't fit: " + str(self.results))
-                pass
-
-            ####################################################
-            self.logger.debug("Starting with Greedy Solution as input")
-            self.getIlpStartingDictValues(block=greedyCompiler.block,\
-                                          layout=greedyCompiler.layout,\
-                                          word=greedyCompiler.word,\
-                                          startTimeOfStage=greedyConfig.getStartTimeOfStage())
-            if self.results['greedySolved']:
-                self.logger.info("Checking greedy solution.")
-                if self.checkConstraints(self.startingDict):
-                    self.logger.info("Solution looks good.")
-                    pass
-                pass
-            pass
-
-        #totalBlocks = sum(sum([totalBlocks[mem] for mem in switch.memoryTypes]))
-        #self.totalBitsInUsedStagesObjective()
         pipelineLatency = self.startTimeOfStage[self.stMax-1]
         totalMemBlocks = sum([self.block[mem].T for mem in self.switch.allTypes])
         totalBlocks = (totalMemBlocks * np.ones(self.logMax)).T * np.ones(self.stMax)
@@ -1300,8 +799,7 @@ class RmtIlpCompiler:
         self.logger.debug("Shape of np.ones(self.stMax) %s" % str(np.ones(self.stMax).shape))
 
         maximumLatency = self.switch.matchDelay * self.switch.numStages
-        maximumStage = sum([self.isMaximumStage[st]*st\
-                                for st in range(self.stMax)])
+        maximumStage = sum([self.isMaximumStage[st]*st for st in range(self.stMax)])
 
         self.getLayoutBinary()
 
@@ -1354,6 +852,11 @@ class RmtIlpCompiler:
                 self.logger.info("Solution looks good.")
                 pass
             pass
+
+            from hun_output import printOutConstraints
+            printOutConstraints(self, output_path)
+        
+
         solverTimes.append(self.m.getSolverTime())
         nIterations.append(self.m.getNIterations())
         """
@@ -1446,8 +949,7 @@ class RmtIlpCompiler:
                                     for log in range(self.logMax)\
                                     for mem in self.all])
             pass
-            self.results['ilpNumStages'] = max([st for st in range(self.stMax) if\
-                                        totalBlocks[st] > 0])+1
+            # self.results['ilpNumStages'] = max([st for st in range(self.stMax) if totalBlocks[st] > 0])+1
             pass
         pass
     
@@ -1476,3 +978,445 @@ class RmtIlpCompiler:
         #self.displayActiveRams(model)
         #self.displayMaximumStage(model)
         return correct
+
+    def checkPipelineLatencyConstraint(self, model):
+        correct = True
+        startAllMemTimesStartTimeOfStage = model[self.startAllMemTimesStartTimeOfStage]
+        endAllMemTimesStartTimeOfStage = model[self.endAllMemTimesStartTimeOfStage]
+        startTimeOfStage = model[self.startTimeOfStage]
+
+        layout = {}
+        layout['sram'] = model[self.layout['sram']]
+        layout['tcam'] = model[self.layout['tcam']]
+        layout['action'] = model[self.layout['action']]
+
+        stageInfo = "\nStart time for model\n"
+        for st in range(self.stMax):
+             stageInfo += " Stage %d: %.1f " % (st, startTimeOfStage[st])
+             tablesThatStart = [log for log in range(self.logMax) if startAllMemTimesStartTimeOfStage[log, st] > 0]
+             tableInfo = {}
+             for log in range(self.logMax):
+                 punits = {}
+                 for thing in ['sram','tcam','action']:
+                     punits[thing] = sum([layout[thing][log*self.stMax+st,pf] for pf in range(self.pfMax[thing])])
+                 tableInfo[log] = ", ".join(["%s: %d" % (t[0], punits[t]) for t in ['sram','tcam','action']])
+
+             stageInfo += "Tables that start in this stage: %s\n" % ", ".join(["%s: %s" % (self.program.names[log], tableInfo[log]) for log in tablesThatStart])
+        
+        self.logger.debug(stageInfo)
+
+        startTimeOfStartStageOfLog = {}
+        startTimeOfEndStageOfLog = {}
+        for log in range(self.logMax):
+            startTimeOfStartStageOfLog[log] = sum([startAllMemTimesStartTimeOfStage[log, st] for st in range(self.stMax)])
+            startTimeOfEndStageOfLog[log] = sum([endAllMemTimesStartTimeOfStage[log, st] for st in range(self.stMax)])
+
+        # successor dependency
+        for st in range(1,self.stMax):
+            if not (startTimeOfStage[st] >= startTimeOfStage[st-1] + self.switch.successorDelay):
+                roundOkay = (round(startTimeOfStage[st]) >= round(startTimeOfStage[st-1]) + self.switch.successorDelay)
+                level = logging.WARNING
+                if not roundOkay:
+                    level = logging.ERROR
+                correct = False
+                self.logger.log(level, "successor dependency constraint on latency violated at %d" % st)
+        
+        # match dependency
+        for (log1,log2) in self.program.logicalMatchDependencyList:
+            if not(startTimeOfStartStageOfLog[log2] >= startTimeOfEndStageOfLog[log1] + self.switch.matchDelay):
+                roundOkay = (round(startTimeOfStartStageOfLog[log2]) >= round(startTimeOfEndStageOfLog[log1]) + self.switch.matchDelay)
+                level = logging.WARNING
+                if not roundOkay:
+                    level = logging.ERROR
+                    pass
+                correct = False
+                self.logger.log(level,\
+                                    "match dependency (%s, %s)" % (self.program.names[log1], self.program.names[log2])\
+                                    + " on latency violated:"\
+                                    + " %s end stage starts at time %d." % ( self.program.names[log1], startTimeOfEndStageOfLog[log1])\
+                                    + " %s start stage starts at time %d." % ( self.program.names[log2], startTimeOfStartStageOfLog[log2]))
+
+        # action dependency
+        for (log1,log2) in self.program.logicalActionDependencyList:
+            if not(startTimeOfStartStageOfLog[log2] >= startTimeOfEndStageOfLog[log1] + self.switch.actionDelay):
+                roundOkay = (round(startTimeOfStartStageOfLog[log2]) >= round(startTimeOfEndStageOfLog[log1]) + self.switch.actionDelay)
+                level = logging.WARNING
+                if not roundOkay:
+                    level = logging.ERROR
+                    pass
+                correct = False
+                self.logger.log(level,\
+                                    "action dependency (%s, %s) " % (self.program.names[log1], self.program.names[log2])\
+                                 + " on latency violated:"\
+                                 + " %s end stage starts at time %d." % ( self.program.names[log1], startTimeOfEndStageOfLog[log1])\
+                                 + " %s end start starts at time %d." % ( self.program.names[log2], startTimeOfStartStageOfLog[log2]))
+
+                    
+        return correct
+
+    def checkStartingAndEndingStagesConstraint(self, model):
+        correct = True
+        blockAllMemBin = model[self.blockAllMemBin]
+        endAllMem= model[self.endAllMem]
+        startAllMem=model[self.startAllMem]
+        startAllMemTimesBlockAllMemBin = model[self.startAllMemTimesBlockAllMemBin]
+        endAllMemTimesBlockAllMemBin = model[self.endAllMemTimesBlockAllMemBin]
+        for log in range(self.logMax):
+            if not(sum([endAllMem[log,st] for st in range(self.stMax)]) == 1):
+                roundOkay = (sum([round(endAllMem[log,st]) for st in range(self.stMax)]) == 1)
+                level = logging.WARNING
+                if not roundOkay:
+                    level = logging.ERROR
+                    pass
+                correct = False
+                self.logger.log(level, "Constraint violated- more/less than one end stage for " + self.program.names[log])
+                pass
+            if not(sum([startAllMem[log,st] for st in range(self.stMax)]) == 1):
+                roundOkay = (sum([round(startAllMem[log,st]) for st in range(self.stMax)]) == 1)
+                level = logging.WARNING
+                if not roundOkay:
+                    level = logging.ERROR
+                    pass
+                correct = False
+                self.logger.log(level, "Constraint violated- more/less than one start stage for " + self.program.names[log])
+                pass
+            pass
+        return correct
+
+    def checkInputCrossbarConstraint(self, model, mem):
+        correct = True
+        blockBin = model[self.blockBin[mem]]
+        numSubunitsNeeded = {}
+        numSubunitsAvailable = {}
+
+        for st in range(self.stMax):
+            numSubunitsNeeded = sum([blockBin[log,st] * self.preprocess.inputCrossbarNumSubunits[mem][log] for log in range(self.logMax)])
+            numSubunitsAvailable = self.switch.inputCrossbarNumSubunits[mem] 
+            if (numSubunitsNeeded > numSubunitsAvailable):
+                roundOkay = (sum([round(blockBin[log,st]) * self.preprocess.inputCrossbarNumSubunits[mem][log] for log in range(self.logMax)]) <= numSubunitsAvailable)
+                level = logging.WARNING
+                if not roundOkay:
+                    level = logging.ERROR
+                    pass
+                correct = False
+                self.logger.log(level, "Input Crossbar Constraint violated in st %d, mem %s" % (st,mem) +\
+                             "Used " + str(numSubunitsNeeded) +", Available " + str(numSubunitsAvailable))
+        return correct
+
+    """ Show info """
+
+    def displayActiveRams(self, model):
+        """
+        For each table in each stage, 
+        - number of RAMs for a match packing units (enforce one type per st)
+        - + number of RAMs for an action packing unit
+        """
+        self.logger.debug("DISPLAY ACTIVE RAMS")
+        ramsForPUnits = 0
+        for st in range(self.stMax):
+            for log in range(self.logMax):
+                name = self.program.names[log]
+                # match RAM
+                for pf in range(self.pfMax['sram']):
+                    ramsPerPUnit = self.preprocess.layout['sram'][log][pf]
+                    index = log*self.stMax+st
+                    numPUnits = round(model[self.layout['sram']][index, pf])
+                    present = round(model[self.layoutBin['sram']][index, pf])
+
+                    idStr = "%d-wide match SRAM PUnit, %s in st %d (pf=%d)"%\
+                        (ramsPerPUnit, name, st, pf)
+                    layoutStr = "layout (%d) and layoutBin (%d)" %\
+                        (numPUnits, present)
+
+                    if numPUnits > 0 and present == 0 or\
+                            numPUnits == 0 and present == 1:
+                        self.logger.warn( "%s inconsistent for %s" %\
+                                          (layoutStr, idStr))
+                        pass
+                    elif numPUnits > 0 and present > 0:
+                        self.logger.debug(idStr)
+                        ramsForPUnits += ramsPerPUnit
+                # action RAM
+                pf = 0
+                ramsPerPUnit = self.preprocess.layout['action'][log][pf]
+                numPUnits = round(model[self.layout['action']][index, pf])
+                present = round(model[\
+                    self.layoutBin['action']][log*self.stMax+st, pf])
+                idStr = "%d-wide action SRAM PUnit, %s in st %d (pf=%d)"%\
+                    (ramsPerPUnit, name, st, pf)
+                layoutStr = "layout (%d) and layoutBin (%d)" %\
+                    (numPUnits, present)
+                if numPUnits > 0 and present == 0 or\
+                        numPUnits == 0 and present == 1:
+                    self.logger.warn( "%s inconsistent for %s" %\
+                                      (layoutStr, idStr))
+                elif numPUnits > 0 and present > 0:
+                    self.logger.debug(idStr)
+                    ramsForPUnits += ramsPerPUnit
+            self.logger.debug("%d active RAMs over all stages" % ramsForPUnits)
+
+    def displayStartingAndEndingStages(self, model):
+        numStartingStages = {}
+        startStage = {}
+        anyBlocksInStartStage = {}
+        for log in range(self.logMax):
+            # there is exactly one starting stage
+            numStartingStages[log] = sum([model[self.startAllMem][log,st] for st in range(self.stMax)])
+            self.logger.debug(self.program.names[log])
+            self.logger.debug(" numStartingStages: " + str(numStartingStages[log]))
+            
+            startStage[log] = sum([model[self.startAllMem][log,st] * st for st in range(self.stMax)])
+            self.logger.debug(" startStage: " + str(startStage[log]))
+            
+            upperBound = self.stMax
+            # if a stage has blocks, starting stage is at least as small
+            for st in range(self.stMax):
+                totalBlocks =\
+                  sum([model[self.block[mem]][log,st] for mem in self.switch.memoryTypes])
+
+                if (startStage[log] > st and totalBlocks > 0):
+                    binary = model[self.blockAllMemBin][log,st]
+                    roundOkay = not (round(startStage[log]) > st and round(totalBlocks) > 0)
+                    level = logging.WARNING
+                    if not roundOkay:
+                        level = logging.ERROR
+                        pass
+
+                    self.logger.log(level, "startStage def. constraint violated for log %s, st %d: " % (self.program.names[log], st)\
+                                     + " Stage %d has %d mem. blocks in bin. %d ." % (st, totalBlocks, binary)\
+                                     + " Lhs (start stage) = %d." % startStage[log]\
+                                     + " Rhs = %d + (1-%d)*%d." % (st, int(model[self.blockAllMemBin][log,st]), upperBound)\
+                                     + " Lhs <= Rhs?")
+            # starting stage has some blocks
+            anyBlocksInStartStage[log] = sum([model[self.startAllMemTimesBlockAllMemBin][log,st] for st in range(self.stMax)])
+            self.logger.debug(self.program.names[log])
+            self.logger.debug(" anyBlocksInStartStage: " + str(anyBlocksInStartStage[log]))
+    
+
+    def getNumActiveSrams(self):
+        """
+        For each table in each stage, 
+        - number of RAMs for a match packing units (enforce one type per st)
+        - + number of RAMs for an action packing unit
+        """
+        ramsForPUnits = 0
+        for st in range(self.stMax):
+            for log in range(self.logMax):
+                # match RAM
+                for pf in range(self.pfMax['sram']):
+                    ramsPerPUnit = self.preprocess.layout['sram'][log][pf]
+                    present = self.layoutBin['sram'][log*self.stMax+st, pf]
+                    ramsForPUnits += present * ramsPerPUnit
+                # action RAM
+                pf = 0
+                ramsPerPUnit = self.preprocess.layout['action'][log][pf]
+                present = self.layoutBin['action'][log*self.stMax+st, pf]
+                ramsForPUnits += present * ramsPerPUnit
+
+        self.numActiveSrams = ramsForPUnits
+
+    def getNumActiveTcams(self):
+        """
+        If match data width is less than TCAM width, only 
+        a fraction of TCAM is active/ consumes power.
+        """
+        tcamsForPUnits = 0
+        for st in range(self.stMax):
+            for log in range(self.logMax):
+                for pf in range(self.pfMax['tcam']):
+                    # layout['tcam'][log] is not a list, just an int
+                    tcamsPerPUnit = self.preprocess.layout['tcam'][log]
+                    tcamWidth = tcamsPerPUnit * self.switch.width['tcam']
+                    matchWidth = self.program.logicalTableWidths[log]
+                    numPUnits = self.layout['tcam'][log*self.stMax+st, pf]
+                    tcamsForPUnits += numPUnits * (tcamWidth/matchWidth)
+        self.numActiveTcams = tcamsForPUnits
+
+    def getPowerForRamsAndTcamsObjective(self):
+        self.getNumActiveSrams()
+        self.getNumActiveTcams()
+        self.powerForRamsAndTcams = self.switch.power['wattsPerTcam'] * self.numActiveTcams + self.switch.power['wattsPerSram'] * self.numActiveSrams
+
+    
+
+    def getIlpStartingDictValues(self, block, layout, word, startTimeOfStage):
+
+        usedStage = {}
+        totalBlocksForStBin = np.zeros(self.stMax)
+        isMaximumStage = np.zeros(self.stMax)
+        isMaximumStageTimesTotalBlocksForStBin = np.zeros(self.stMax)
+        maximumStage = -1
+    
+        for mem in self.switch.memoryTypes:
+            for st in range(self.stMax):
+                if sum([block[mem][log,st] for mem in self.all\
+                            for log in range(self.logMax)]) > 0:
+                    if st > maximumStage:
+                        maximumStage = st
+                    totalBlocksForStBin[st] = 1              
+
+        self.logger.info(\
+       "Maximum stage in start solution is %.1f.." % maximumStage)
+        isMaximumStage[maximumStage] = 1
+        isMaximumStageTimesTotalBlocksForStBin[maximumStage] = 1
+
+        self.startingDict[self.totalBlocksForStBin] = totalBlocksForStBin
+        self.startingDict[self.isMaximumStage] = isMaximumStage
+        self.startingDict[self.isMaximumStageTimesTotalBlocksForStBin] = isMaximumStageTimesTotalBlocksForStBin
+
+        blockBin = {}
+        for thing in self.switch.allTypes:
+            blockBin[thing] = np.zeros((self.logMax, self.stMax))            
+            for log in range(self.logMax):
+                for st in range(self.stMax):
+                    if block[thing][log,st] > 0:
+                        blockBin[thing][log,st] = 1
+        layoutBin = {}
+        for thing in self.switch.allTypes:
+            width = int(self.logMax*self.stMax)
+            depth = int(self.pfMax[thing])
+            layoutBin[thing] = np.zeros((width, depth))
+            for log in range(self.logMax):
+                for st in range(self.stMax):
+                    for pf in range(self.pfMax[thing]):
+                        if layout[thing][log*self.stMax+st,pf] > 0:
+                            layoutBin[thing][log*self.stMax+st,pf] = 1
+              
+        for thing in self.switch.allTypes:
+            self.startingDict[self.word[thing]] = word[thing]
+            self.startingDict[self.block[thing]] = block[thing]
+            self.startingDict[self.layout[thing]] = layout[thing]
+            self.startingDict[self.blockBin[thing]] = blockBin[thing]
+            self.startingDict[self.layoutBin[thing]] = layoutBin[thing]
+
+        self.startingDict[self.startTimeOfStage] =\
+            startTimeOfStage
+
+
+        blockAllMemBin = np.zeros((self.logMax, self.stMax))
+        for log in range(self.logMax):
+            for st in range(self.stMax):
+                totalBlocks = sum([round(block[mem][log,st]) for mem in self.all])
+                if totalBlocks > 0:
+                    blockAllMemBin[log,st] = 1
+
+        self.startingDict[self.blockAllMemBin] = blockAllMemBin
+        
+        startAllMem = np.zeros((self.logMax, self.stMax))
+        endAllMem = np.zeros((self.logMax, self.stMax))
+
+        startAllMemTimesStartTimeOfStage = np.zeros((self.logMax, self.stMax))
+        endAllMemTimesStartTimeOfStage = np.zeros((self.logMax, self.stMax))
+
+        startAllMemTimesBlockAllMemBin = np.zeros((self.logMax, self.stMax))
+        endAllMemTimesBlockAllMemBin = np.zeros((self.logMax, self.stMax))
+
+        for log in range(self.logMax):
+            stages = [st for st in range(self.stMax) if any([round(block[mem][log,st])>0 for mem in self.all])]
+            if len(stages) == 0:
+                self.logger.warn("Warning! " + str(log) + " not assigned to any stage")
+            else:
+                startSt = int(min(stages))
+                endSt = int(max(stages))
+                startAllMem[log,startSt] = 1
+                endAllMem[log, endSt] = 1
+                startAllMemTimesBlockAllMemBin[log, startSt] = blockAllMemBin[log, startSt]
+                endAllMemTimesBlockAllMemBin[log, endSt] = blockAllMemBin[log, endSt]
+                startAllMemTimesStartTimeOfStage[log,startSt] = startTimeOfStage[startSt]
+                endAllMemTimesStartTimeOfStage[log,endSt] = startTimeOfStage[endSt]
+                
+        self.startingDict[self.startAllMem] = startAllMem
+        self.startingDict[self.endAllMem] = endAllMem
+        self.startingDict[self.startAllMemTimesStartTimeOfStage] = startAllMemTimesStartTimeOfStage
+        self.startingDict[self.endAllMemTimesStartTimeOfStage] = endAllMemTimesStartTimeOfStage
+        self.startingDict[self.startAllMemTimesBlockAllMemBin] = startAllMemTimesBlockAllMemBin
+        self.startingDict[self.endAllMemTimesBlockAllMemBin] = endAllMemTimesBlockAllMemBin
+
+    # LY's experiment- where ILP speeds up if it doesn't have to
+    # assign action data
+    def displayMaximumStage(self, model):
+        maximumStage = sum([model[self.isMaximumStage][st]*st\
+                                for st in range(self.stMax)])
+        self.logger.debug("maximum stage from model: %.1f" % maximumStage)
+        numMaxStages = sum([model[self.isMaximumStage][st] for\
+                                st in range(self.stMax)])
+        self.logger.debug("num maximum stages from model: %.1f" %\
+                         numMaxStages)
+        sumOverSt =\
+            sum([model[self.isMaximumStageTimesTotalBlocksForStBin]\
+                     [st] for st in range(self.stMax)])
+        self.logger.debug(\
+            "sum over is max st time totalBlocksForStBin: %.1f" %\
+                sumOverSt)
+        debugStr =\
+            "totalBlocksForStBin, isMaximumStage, "
+        debugStr += "total (w/o action), total (w action)\n"
+        for st in range(self.stMax):
+            totalWoAction = sum([model[self.block[mem]][log,st]\
+                             for log in range(self.logMax)\
+                             for mem in self.switch.memoryTypes])
+            
+            totalWAction = totalWoAction +\
+                sum([model[self.block['action']][log,st]\
+                             for log in range(self.logMax)])
+            debugStr +=\
+                ("St %d: %.1f, %.1f, %.1f, %.1f\n" %\
+                     (\
+                    st,\
+                        model[self.totalBlocksForStBin][st],\
+                        model[self.isMaximumStage][st],\
+                        totalWoAction, totalWAction))
+            pass
+        self.logger.debug(debugStr)
+        pass
+
+
+        # #Hun - delete greedy solution
+        # if len(self.greedyVersion)>0:
+        #     numSramBlocksReserved=int(self.greedyVersion.split("-")[1])
+        #     ####################################################
+        #     self.logger.info("Getting a greedy solution")
+        #     self.logger.info("~~")
+        #     self.logger.info("Greedy compiler's log begins..")
+        #     greedyCompiler = rmt_ffd_compiler.RmtFfdCompiler(numSramBlocksReserved)
+        #     if 'ffl' in self.greedyVersion:
+        #         greedyCompiler = rmt_ffl_compiler.RmtFflCompiler(numSramBlocksReserved)
+        #         pass
+        #     start = time.time()
+        #     greedyConfig =\
+        #         greedyCompiler.solve(self.program, self.switch, self.preprocess)['greedyConfig']
+        #     self.logger.info("Greedy compiler's log ends..")
+        #     configs['greedyConfig'] = greedyConfig
+        #     self.logger.info("~~")
+
+        #     end = time.time()
+        #     ####################################################
+        #     #self.logger.debug("Displaying greedy solution")
+        #     #greedyConfig.display()
+        #     ####################################################
+        #     self.logger.debug("Saving results from greedy")
+        #     self.results['greedyTotalUnassignedWords'] = greedyCompiler.results['totalUnassignedWords']
+        #     self.results['greedySolveTime'] = greedyCompiler.results['solveTime']
+        #     self.results['greedySolved'] = greedyCompiler.results['solved']
+        #     self.results['greedyPipelineLatency'] = greedyCompiler.results['pipelineLatency']
+        #     self.results['greedyPower'] = greedyCompiler.results['power']
+        #     self.results['greedyNumStages'] = greedyCompiler.results['numStages']
+        #     self.logger.info("results[Greedy .." + str(self.results))
+
+        #     if not self.results['greedySolved']:
+        #         self.logger.warn("Greedy couldn't fit: " + str(self.results))
+        #         pass
+
+        #     ####################################################
+        #     self.logger.debug("Starting with Greedy Solution as input")
+        #     self.getIlpStartingDictValues(block=greedyCompiler.block,\
+        #                                   layout=greedyCompiler.layout,\
+        #                                   word=greedyCompiler.word,\
+        #                                   startTimeOfStage=greedyConfig.getStartTimeOfStage())
+        #     if self.results['greedySolved']:
+        #         self.logger.info("Checking greedy solution.")
+        #         if self.checkConstraints(self.startingDict):
+        #             self.logger.info("Solution looks good.")
+        #             pass
+        #         pass
+        #     pass

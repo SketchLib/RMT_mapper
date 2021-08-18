@@ -17,7 +17,12 @@ EGRESS_ONLY = 1
 INGRESS_AND_EGRESS = 2
 
 # default configuration file locations
-mapper_dir = ".."
+
+# mapper_dir = ".."
+
+import os 
+mapper_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+
 default_compiler_file = '%s/config/comp00.txt' % mapper_dir
 default_program_file = '%s/config/prog00.txt' % mapper_dir
 default_switch_file = '%s/config/switch00.txt' % mapper_dir

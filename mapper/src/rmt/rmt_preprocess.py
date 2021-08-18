@@ -99,14 +99,17 @@ class RmtPreprocess:
         """
         self.toposortOrderStages = switch.toposortOrderStages
 
-        
-        allMaxPfs = max([self.getMaxPf(logicalWidth[0,0], switch.width['sram'])\
-                             for logicalWidth in program.logicalTableWidths[:, 0]])
+        # print(program.logicalTableWidths)
+        # print(switch.width['sram'])
+        allMaxPfs = max([self.getMaxPf(logicalWidth[0,0], switch.width['sram']) for logicalWidth in program.logicalTableWidths[:, 0]])
+        # print(allMaxPfs)
+        # exit(1)
         """
         Limit packing unit size to 4 SRAM blocks
         """
         pfMax = min(4, allMaxPfs)
-
+        # if pfMax == 0:
+        #     pfMax = 1
         # layout['sram'](log, pf) is the number of RAMs
         # that make up the pfth packing unit for table log
         # and 'sram' memories
@@ -120,11 +123,13 @@ class RmtPreprocess:
         self.word['sram'] = np.zeros((logMax, pfMax))
 
         for log in range(logMax):
-            startPf = int(np.ceil(float(program.logicalTableWidths[log])/\
-                              switch.inputCrossbarWidthSubunit['sram']))
+            startPf = int(np.ceil(float(program.logicalTableWidths[log])/switch.inputCrossbarWidthSubunit['sram']))
 
             # startPf is the number of RAMs to fit not more than one entry per Row
             # e.g., for a 128b wide entry and 80b RAMs, startPf is 2.
+            # print(logMax)
+            # print(log)
+            # print(startPf)
             self.layout['sram'][log, 0] = startPf
             self.word['sram'][log, 0] = switch.depth['sram']
 
@@ -152,35 +157,26 @@ class RmtPreprocess:
                 # set maxWords to 0, so LP compiler doesn't use this option
                 maxWords = max(maxWords, 0)
                 self.word['sram'][log, pf] = maxWords
-                pass
-            pass
 
         
         # No 'multiple entries per packing unit' for TCAMs and other 'unpackableMemTypes',
         # Only one possible packing unit- whose size/ layout is the number of blocks
         # needed to fit not more than one match entry per row.
         for mem in self.switch.unpackableMemTypes:
-            self.layout[mem] = np.matrix([np.ceil(float(m)/switch.width[mem]) for m in\
-                                                 program.logicalTableWidths]).T
+            self.layout[mem] = np.matrix([np.ceil(float(m)/switch.width[mem]) for m in program.logicalTableWidths]).T
             self.word[mem] = np.ones(logMax) * switch.depth[mem]
-            pass
 
         self.NumPackingFactors = pfMax
 
         # A 128b wide match entry will need two whole 80b wide input crossbar subunits.
         self.inputCrossbarNumSubunits = {}
         for mem in switch.memoryTypes:
-            self.inputCrossbarNumSubunits[mem] = \
-                np.matrix([np.ceil(float(m)/switch.inputCrossbarWidthSubunit[mem]) for m in\
-                               program.logicalTableWidths]).T
-            pass
+            self.inputCrossbarNumSubunits[mem] = np.matrix([np.ceil(float(m)/switch.inputCrossbarWidthSubunit[mem]) for m in program.logicalTableWidths]).T
 
         # Only one of the different action data words available will be
         # moved to the ALUs via the action crossbar, reserve
         # as many bits as needed by the widest action data entry.
-        self.actionCrossbarNumBits = \
-            np.matrix([np.ceil(float(max(widths))) for widths in\
-                                   program.logicalTableActionWidths]).T
+        self.actionCrossbarNumBits =  np.matrix([np.ceil(float(max(widths))) for widths in program.logicalTableActionWidths]).T
     
         """
         Memories needed for Action Data
@@ -210,14 +206,13 @@ class RmtPreprocess:
             if actionWidth > 0:
                 numRamsForOneEntry = np.ceil(float(actionWidth)/self.switch.width['sram'])
                 layout = numRamsForOneEntry
-                actionWordsPerRow = np.floor(float(numRamsForOneEntry*self.switch.width['sram'])\
-                                                 /actionWidth)
+                actionWordsPerRow = np.floor(float(numRamsForOneEntry*self.switch.width['sram'])/actionWidth)
                 words = actionWordsPerRow * switch.depth['sram']
-                pass
+
             self.word['action'][log] = words
             layouts.append(layout)
             actionWidths.append(actionWidth)
-            pass
+
         self.layout['action'] = np.matrix(layouts).T
         self.actionWidths = actionWidths
         self.logger.debug("action widths")

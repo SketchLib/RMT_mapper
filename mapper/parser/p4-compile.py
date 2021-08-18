@@ -77,6 +77,9 @@ parser.add_argument('--compiler_objectiveStr', required=False, type=str, help="o
 parser.add_argument('--compiler_relativeGap', required=False, type=float, help="relative gap for ILP compiler")
 parser.add_argument('--compiler_outputFileName', required=False, type=str, help="output file for MIP start etc.")
 
+parser.add_argument('--output', required=True, type=str, help="output result file")
+parser.add_argument('--objective', required=True, type=str, help="ILP objective")
+
 args = parser.parse_args()
 print args
 
@@ -212,6 +215,14 @@ try:
     #logging.error("Given P4 file does not exist: %s" % args.program)
     #exit()
     #pass
+
+
+    # please download bug-fixed p4-hlir at this repo
+    # https://github.com/SketchLib/p4-hlir
+    import sys
+    sys.path.insert(0, "/home/hnamkung/p4-hlir")
+    import p4_hlir
+
     f = open(args.program)
     from p4_hlir.main import HLIR
     import hlirToProgram
@@ -260,7 +271,7 @@ try:
     logging.info("~~")
     logging.info("Compiler Log")
     start = time.time()
-    configs = compiler.solve(program=program, switch=switch, preprocess=preprocess)
+    configs = compiler.solve(program=program, switch=switch, preprocess=preprocess, output_path=args.output, objective=args.objective)
     end = time.time()
     logging.info("Finished compiling.")
 except:

@@ -48,7 +48,11 @@ class RmtSwitch:
                      power= {'wattsPerSramBit': 16.8090820313e-08,\
                                  'wattsPerTcamBit':5.8520785245e-07},\
                      unpackableMemTypes=['tcam'],\
-                     toposortOrder = []):
+                     toposortOrder = [],
+                     maxHashDistUnit=1000, # substitute_with_tofino_numbers
+                     maxSALU=1000, # substitute_with_tofino_numbers
+                     maxMapRAM=1000): # substitute_with_tofino_numbers
+
         """ initialize with resources available in each stage
         Stages in the RMT chip are uniform- i.e., they have
         the same distribution of resources- memory blocks,
@@ -220,5 +224,13 @@ class RmtSwitch:
         self.allTypes = sorted(allTypes.keys())
         self.logger.info("All types: %s" % self.allTypes)
         
-        pass
+        self.logger.info("Hash Dist Unit per stage: %d" % maxHashDistUnit)
+        self.maxHashDistUnit = maxHashDistUnit
+
+        self.logger.info("SALU per stage: %d" % maxSALU)
+        self.maxSALU = maxSALU
+
+        self.logger.info("mapRAM: %d" % maxMapRAM)
+        self.maxMapRAM = maxMapRAM
+
 

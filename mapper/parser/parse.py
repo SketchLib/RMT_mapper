@@ -15,7 +15,10 @@ def getRmtSwitch(d):
                            actionCrossbarNumBits=d['actionCrossbarNumBits'],\
                            matchTablesPerStage=d['matchTablesPerStage'],\
                            unpackableMemTypes=d['unpackableMemTypes'],\
-                           delays=d['delays'], matchType=matchType)
+                           delays=d['delays'], matchType=matchType,
+                           maxHashDistUnit=d['hashDistUnit'],
+                           maxSALU=d['SALU'],
+                           maxMapRAM=d['mapRAM'])
     
     return switch
 
